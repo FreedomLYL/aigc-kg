@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>核心功能实现 — 全链路架构</title>
+<style>
+  :root{
+    --bg-0:#060b1a; --bg-1:#0a1530;
+    --grid:rgba(90,140,255,.08);
+    --cyan:#39d2ff; --cyan-soft:#4db8ff;
+    --blue:#5b8cff; --blue-deep:#2f53c0;
+    --ink:#dbe7ff; --muted:#8fa4d6;
+    --glow:0 0 18px rgba(90,140,255,.55);
+  }
+  *{box-sizing:border-box;margin:0}
+  html,body{height:100%}
+  body{
+    font-family:"Segoe UI","Microsoft YaHei",sans-serif;
+    background:
+      radial-gradient(120% 90% at 12% -10%, rgba(45,80,180,.35), transparent 55%),
+      radial-gradient(100% 80% at 100% 110%, rgba(57,210,255,.16), transparent 50%),
+      linear-gradient(160deg, var(--bg-0), var(--bg-1) 60%, var(--bg-0));
+    color:var(--ink);
+    display:flex;align-items:center;justify-content:center;
+    min-height:100vh;padding:30px;
+  }
+  .screen{position:relative;width:1360px;max-width:100%;border-radius:22px;overflow:hidden;
+    background:rgba(9,17,38,.55);border:1px solid rgba(120,160,255,.18);
+    box-shadow:0 40px 90px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);
+    backdrop-filter:blur(6px)}
+  /* tech grid overlay */
+  .screen::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:44px 44px;mask-image:radial-gradient(120% 100% at 50% 0%,#000 55%,transparent 100%)}
+  .glowdot{position:absolute;width:5px;height:5px;border-radius:50%;background:var(--cyan);
+    box-shadow:0 0 12px var(--cyan);opacity:.7}
+
+  /* header */
+  header{position:relative;z-index:2;display:flex;align-items:center;gap:14px;
+    padding:24px 34px 18px;border-bottom:1px solid rgba(120,160,255,.14)}
+  header .chip{font-size:11px;letter-spacing:3px;color:var(--cyan);
+    border:1px solid rgba(57,210,255,.35);padding:3px 10px;border-radius:999px;box-shadow:var(--glow)}
+  header h1{font-size:26px;font-weight:800;letter-spacing:1px;text-shadow:0 0 24px rgba(90,140,255,.5)}
+  header h1 i{color:var(--cyan);font-style:normal}
+  header .tail{margin-left:auto;font-size:11px;color:var(--muted);letter-spacing:1px}
+
+  /* body split */
+  .body{position:relative;z-index:2;display:grid;grid-template-columns:1fr 380px;gap:0}
+  .left{padding:34px 38px 40px;border-right:1px dashed rgba(120,160,255,.18)}
+  .right{padding:30px 26px}
+
+  .cap{font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:22px}
+  .cap b{color:var(--cyan);font-weight:600}
+
+  /* flow */
+  .flow{display:flex;flex-direction:column;gap:0}
+  .fnode{display:flex;align-items:center;gap:16px}
+  .fid{flex:0 0 56px;display:flex;flex-direction:column;align-items:center;gap:6px}
+  .fid .ring{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-weight:800;font-size:17px;color:#051021;
+    background:linear-gradient(135deg,var(--cyan),var(--blue));box-shadow:var(--glow)}
+  .fid .lbl{font-size:10px;color:var(--muted);letter-spacing:1px}
+  .fbody{flex:1;background:linear-gradient(120deg,rgba(30,50,110,.5),rgba(16,28,64,.5));
+    border:1px solid rgba(120,160,255,.22);border-left:3px solid var(--blue);border-radius:13px;padding:13px 18px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+  .fbody h3{font-size:16px;font-weight:700;color:#eaf1ff;display:flex;align-items:center;gap:9px}
+  .fbody h3 i{color:var(--cyan);font-size:12px;font-style:normal;letter-spacing:1px}
+  .fbody p{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.55}
+  .fconn{align-self:stretch;display:flex;justify-content:center;padding:2px 0}
+  .fconn .line{width:2px;flex:1;background:linear-gradient(var(--blue),rgba(57,210,255,.25))}
+  .fbody.on{animation:none}
+  .fbody.on{border-left-color:var(--cyan);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 0 20px rgba(57,210,255,.2)}
+
+  /* right module list */
+  .mod{display:flex;align-items:center;gap:13px;padding:12px 14px;margin-bottom:10px;
+    background:linear-gradient(120deg,rgba(28,46,102,.45),rgba(14,24,52,.45));
+    border:1px solid rgba(120,160,255,.16);border-radius:13px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+  .mod .ic{flex:0 0 40px;height:40px;border-radius:11px;display:grid;place-items:center;font-size:19px;
+    background:linear-gradient(135deg,rgba(57,210,255,.28),rgba(91,140,255,.22));box-shadow:var(--glow)}
+  .mod.hot .ic{animation:blink 2.4s ease-in-out infinite}
+  .mod .tx{flex:1}
+  .mod .tx b{display:block;font-size:14px;color:#eaf1ff}
+  .mod .tx span{font-size:11px;color:var(--muted)}
+  .mod .no{font-size:22px;font-weight:800;color:rgba(91,140,255,.35);font-family:Georgia,serif}
+  @keyframes blink{0%,100%{box-shadow:0 0 10px rgba(57,210,255,.4)}50%{box-shadow:0 0 24px rgba(57,210,255,.9)}}
+
+  footer{position:relative;z-index:2;padding:14px 34px;border-top:1px solid rgba(120,160,255,.14);
+    display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--muted)}
+  footer .flowtxt{letter-spacing:1px}
+  footer .flowtxt em{font-style:normal;color:var(--cyan)}
+</style>
+</head>
+<body>
+<div class="screen">
+  <span class="glowdot" style="top:24px;left:60%"></span>
+  <span class="glowdot" style="top:70%;left:8%"></span>
+  <span class="glowdot" style="top:80%;right:6%"></span>
+
+  <header>
+    <span class="chip">SYSTEM</span>
+    <h1>核心功能<i>实现</i></h1>
+    <span class="tail">AIGC 课程知识图谱 · 全链路架构</span>
+  </header>
+
+  <div class="body">
+    <!-- 左侧：全链路架构流程图 -->
+    <div class="left">
+      <div class="cap">数据流向 <b>Flow ▻</b>　从非结构化文档到智能问答的完整链路</div>
+      <div class="flow" id="flow">
+        <div class="fnode" data-i="0">
+          <div class="fid"><span class="ring">①</span><span class="lbl">输入</span></div>
+          <div class="fbody"><h3>文档上传解析预处理模块</h3><p>非结构化 PDF / Word / Markdown —— 解析、清洗、分块，转成可抽取的统一文本</p></div>
+        </div>
+        <div class="fconn"><div class="line"></div></div>
+        <div class="fnode" data-i="1">
+          <div class="fid"><span class="ring">②</span><span class="lbl">抽取</span></div>
+          <div class="fbody"><h3>AIGC 知识抽取模块 <i>├ 实体识别 · 关系抽取</i></h3><p>从文本中识别知识点实体与其语义关系，输出结构化三元组</p></div>
+        </div>
+        <div class="fconn"><div class="line"></div></div>
+        <div class="fnode" data-i="2">
+          <div class="fid"><span class="ring">③</span><span class="lbl">存储</span></div>
+          <div class="fbody"><h3>Neo4j 图数据库读写模块</h3><p>三元组写入图库，支持节点/关系的增删改查与图遍历</p></div>
+        </div>
+        <div class="fconn"><div class="line"></div></div>
+        <div class="fnode" data-i="3">
+          <div class="fid"><span class="ring">④</span><span class="lbl">可视化</span></div>
+          <div class="fbody"><h3>交互式知识图谱可视化模块</h3><p>前端渲染节点网络：拖拽、缩放、高亮、编辑一体化交互</p></div>
+        </div>
+        <div class="fconn"><div class="line"></div></div>
+        <div class="fnode" data-i="4">
+          <div class="fid"><span class="ring">⑤</span><span class="lbl">应用</span></div>
+          <div class="fbody"><h3>教师 Web 端界面 <i>├ 课程管理 · 图谱编辑</i></h3><p>教师建课、上传文件、编辑与维护课程知识图谱</p></div>
+        </div>
+        <div class="fconn"><div class="line"></div></div>
+        <div class="fnode" data-i="5">
+          <div class="fid"><span class="ring">⑥</span><span class="lbl">应用</span></div>
+          <div class="fbody"><h3>学生 Web 端界面 <i>├ 图谱浏览 · 掌握标记 · 路径推荐</i></h3><p>学生浏览图谱、标记掌握情况、获取个性化学习路径</p></div>
+        </div>
+        <div class="fconn"><div class="line"></div></div>
+        <div class="fnode" data-i="6">
+          <div class="fid"><span class="ring">⑦</span><span class="lbl">问答</span></div>
+          <div class="fbody"><h3>RAG 智能问答模块</h3><p>基于图谱+文档检索增强，面向具体问题生成可溯源的答案</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右侧：功能模块清单 -->
+    <div class="right">
+      <div class="cap">功能模块 <b>Modules</b></div>
+      <div class="mod" data-i="0"><div class="ic">📄</div><div class="tx"><b style="color:var(--cyan)">文档上传解析预处理</b><span>解析 · 清洗 · 分块</span></div><span class="no">01</span></div>
+      <div class="mod" data-i="1"><div class="ic">🧠</div><div class="tx"><b>AIGC 知识抽取</b><span>实体识别、关系抽取</span></div><span class="no">02</span></div>
+      <div class="mod" data-i="2"><div class="ic">🗃️</div><div class="tx"><b>Neo4j 图数据库读写</b><span>图存储 · 图遍历</span></div><span class="no">03</span></div>
+      <div class="mod" data-i="3"><div class="ic">🕸️</div><div class="tx"><b>交互式知识图谱可视化</b><span>拖拽 · 缩放 · 编辑</span></div><span class="no">04</span></div>
+      <div class="mod" data-i="4"><div class="ic">🧑‍🏫</div><div class="tx"><b>教师 Web 端界面</b><span>课程管理、图谱编辑</span></div><span class="no">05</span></div>
+      <div class="mod" data-i="5"><div class="ic">🎓</div><div class="tx"><b>学生 Web 端界面</b><span>图谱浏览、掌握标记、路径推荐</span></div><span class="no">06</span></div>
+      <div class="mod hot" data-i="6"><div class="ic">💬</div><div class="tx"><b>RAG 智能问答</b><span>检索增强 · 可溯源答案</span></div><span class="no">07</span></div>
+    </div>
+  </div>
+
+  <footer>
+    <span class="flowtxt">① 文档 → <em>② 抽取</em> → ③ 存储 → <em>④ 可视化</em> → ⑤/⑥ 应用 → <em>⑦ 问答</em></span>
+    <span>全链路架构 · 核心功能实现</span>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,18 @@
+# 运行时 / 缓存
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# 数据库（演示数据由 seed/seed_data.json 在启动时空库自动重建）
+kg.db
+*.db
+*.sqlite3
+
+# 本地配置与密钥（绝不提交）
+.env
+
+# 系统文件
+Thumbs.db
+.DS_Store

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>原型演示脚本（S4B · ≤10分钟）· AIGC 课程知识图谱</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI","Microsoft YaHei",sans-serif;background:#0d1526;color:#e8eefb;line-height:1.6;padding:40px}
+  .wrap{max-width:900px;margin:0 auto}
+  h1{font-size:24px}
+  .meta{color:#7fd6ff;font-size:13px;margin-bottom:24px}
+  h1 i{display:inline-block;width:12px;height:12px;border-radius:50%;background:#3ad99c;box-shadow:0 0 12px #3ad99c;margin-right:9px}
+  .seg{border:1px solid #23355e;border-radius:14px;padding:16px 18px;margin-bottom:16px;background:linear-gradient(160deg,rgba(20,38,78,.6),rgba(8,18,42,.7))}
+  .seg .hd{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+  .tm{flex:0 0 auto;font-size:12px;font-weight:700;padding:3px 11px;border-radius:999px;background:#2e7bff;color:#fff}
+  .seg .hd b{font-size:17px}
+  .talk{font-size:14.5px;margin:6px 0 4px;color:#fff}
+  .act{font-size:12.5px;color:#9fd0ff;background:rgba(46,123,255,.14);border-radius:8px;padding:7px 10px;margin:6px 0}
+  .tip{font-size:12px;color:#b49568;background:rgba(230,193,92,.12);border-radius:8px;padding:6px 10px}
+  .tot{position:sticky;top:0;font-size:13px;color:#cfdfff;background:rgba(13,21,38,.95);border:1px solid #2a3f6e;border-radius:10px;padding:8px 14px;margin-bottom:18px;backdrop-filter:blur(6px)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><i></i>原型演示脚本 · S4B</h1>
+  <div class="meta">演示对象：AIGC 课程知识图谱系统 ｜ 时长：≤10 分钟 ｜ 账号：教师 test_teacher / 学生 test_student（密码 test1234）</div>
+
+  <div class="tot">⏱ 总计约 10:00 — 含 1 分钟设备校场余量，实际功能展示约 9 分钟</div>
+
+  <div class="seg"><div class="hd"><span class="tm">00:30</span><b>① 开场 · 一句话定位</b></div>
+    <div class="talk">“这是一个『AIGC + 知识图谱』驱动的课程教学平台：老师上传课程文档，系统用大模型自动抽取知识点，构建成可视化的知识图谱；学生可以浏览图谱、得到个性化学习路径，并用 AI 助手做课程问答。”</div>
+    <div class="act">屏幕：系统首页已打开并登录。</div></div>
+
+  <div class="seg"><div class="hd"><span class="tm">00:45</span><b>② 双角色登录</b></div>
+    <div class="talk">“系统分教师、学生两个角色，登录后只展示对应功能。我先用教师身份演示构建，再切学生看学习。”—— 现场快速登进教师端。</div>
+    <div class="act">演示教师 test_teacher 登录 → 展示“教师端独有”的课程管理 / 上传 / 图谱编辑 / 高级分析；点侧栏说明只出现教师功能、藏起了学生的提问与学习路径。</div></div>
+
+  <div class="seg"><div class="hd"><span class="tm">01:30</span><b>③ 课程管理与文件上传</b></div>
+    <div class="talk">“课程的创建不用手敲。下拉给了机器学习、深度学习两大方向，细分到『线性回归』『分类算法』『神经网络基础』等具体课。老师把讲义拖进去，系统按内容自动分成讲课材料、习题。”—— 现场选一门已有课程 + 拖入一个文件截图/文件。</div>
+    <div class="act">展示课程下拉模板分组、名称无数字、手动添加课程、拖拽上传。</div></div>
+
+  <div class="seg"><div class="hd"><span class="tm">02:30</span><b>④ 自动构建知识图谱（核心）</b></div>
+    <div class="talk">“上传完成，系统调用 DeepSeek 大模型抽取实体和语义关系，生成知识三元组——比如『监督学习 包含 线性回归』，清洗后写入图数据库，前端用 ECharts 渲染成可交互图谱。节点按概念/方法/算法分类着色，点一下能看到该知识点的定义。”—— 现场选中‘机器学习-线性回归’并展示渲染好的图谱；点 2-3 个节点看定义；演示编辑修正一个错误并回写。</div>
+    <div class="tip">若当天 DeepSeek 余额不足走到降级，现场话术：判断已保留 mock 演示，构图逻辑一致不中断。</div></div>
+
+  <div class="seg"><div class="hd"><span class="tm">05:30</span><b>⑤ 学生端：浏览 · 标记 · 学习路径</b></div>
+    <div class="talk">“切到学生端。学生浏览图谱、勾选已掌握知识点，后端读取前置关系做图遍历，自动生成个性化学习路径——先学哪个、再学哪个，一路串下来。”—— 现场勾选两个已掌握，展示右侧路径被重算。</div>
+    <div class="act">用 test_student 重新登录 → 展示图谱浏览、掌握标记、路径推荐。</div></div>
+
+  <div class="seg"><div class="hd"><span class="tm">07:00</span><b>⑥ AI 助手 · RAG 问答</b></div>
+    <div class="talk">“最后是 AI 助手。学生提问，系统同时检索原始文档切片和知识图谱三元组，组装 Prompt 交给大模型，返回回答并标注来源知识点；支持语音输入和会话导出。”—— 现场提问“什么是过拟合？怎么避免？”并展示答案与来源。</div>
+    <div class="act">演示提问 → 回答；语音按钮；导出会话。</div></div>
+
+  <div class="seg"><div class="hd"><span class="tm">08:30</span><b>⑦ 教师高级分析 · 收尾</b></div>
+    <div class="talk">“教师端还有知识点统计、核心知识点定位与分类图表、一键导出图谱 JSON —— 直接服务教学。这套系统：真实对接大模型、自带演示范环境降级，本地 SQLite / 云端可切 PostgreSQL，部署到 Render 即可对外访问、不限人数。我们认为它在『教学内容到知识资产』的自动沉淀上有实用价值。”</div>
+    <div class="act">展示统计图表一份 + 导出 JSON；讲完收尾，PPT 翻回总体架构页。</div></div>
+</div>
+</body>
+</html>

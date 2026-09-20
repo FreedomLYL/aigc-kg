@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>演示大屏 · AIGC 课程知识图谱系统界面合集</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:#e8eefb;background:#0b1324;
+    background:radial-gradient(1000px 520px at 25% -10%,#0e2a4d 0%,#0b1324 55%);padding:36px 34px 46px}
+  .head{display:flex;align-items:baseline;gap:14px;max-width:1500px;margin:0 auto 20px}
+  .head h1{font-size:24px;margin:0}
+  .head h1 i{display:inline-block;width:11px;height:11px;border-radius:50%;background:#3ad99c;box-shadow:0 0 12px #3ad99c;margin-right:9px}
+  .head span{color:#7fd6ff;font-size:13px}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;max-width:1500px;margin:0 auto}
+  .card{border-radius:16px;border:1px solid rgba(120,170,255,.2);background:linear-gradient(165deg,rgba(20,38,78,.75),rgba(9,19,42,.85));
+    padding:16px 18px;box-shadow:0 12px 34px rgba(0,0,0,.4)}
+  .card h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .card h2 em{width:8px;height:14px;background:linear-gradient(#2e7bff,#5a4bff);border-radius:3px;display:inline-block;font-style:normal}
+  .card h2 small{margin-left:auto;color:#7a94c2;font-weight:400;font-size:11px}
+  .win{border-radius:11px;background:#0b1633;border:1px solid #1d3a68;overflow:hidden}
+  .win .bar{display:flex;gap:6px;padding:7px 10px;background:#101d3f;border-bottom:1px solid #1d3a68;align-items:center}
+  .win .bar i{width:9px;height:9px;border-radius:50%}
+  .win .bar i:nth-child(1){background:#ff5f57}.win .bar i:nth-child(2){background:#febc2e}.win .bar i:nth-child(3){background:#28c840}
+  .win .bar .ttl{color:#7b93c1;font-size:11px;margin-left:7px}
+  .c12{grid-column:span 12}.c8{grid-column:span 8}.c4{grid-column:span 4}.c6{grid-column:span 6}.c5{grid-column:span 5}.c7{grid-column:span 7}
+  .uz{border:1.4px dashed #3f7dcf;border-radius:10px;text-align:center;padding:16px;color:#7aa9e0}
+  .uz b{color:#ffb25b;font-size:13px}
+  .chip{display:inline-block;padding:4px 10px;border-radius:7px;background:#122449;border:1px solid #244080;color:#cfe3ff;font-size:11px;margin:3px}
+  .chip b{color:#7fd6ff;margin-left:4px}
+  .tri{list-style:none;margin:0;padding:0}
+  .tri li{display:flex;gap:6px;align-items:center;padding:5px 0;border-bottom:1px dashed #1c3160;font-size:11.5px;color:#b9cdff}
+  .tri li:last-child{border:none}
+  .tri .e{font-size:9px;padding:1px 6px;border-radius:5px;background:#123a6b;color:#7fd6ff}
+  .dlg{padding:8px 11px;border-radius:8px;font-size:12px;margin-top:6px}
+  .dlg.q{background:#0d1d3f;border:1px solid #1d3a68;color:#cfe0ff}
+  .dlg.a{background:#132a52;border:1px solid #2a4a7d;color:#eaf3ff}
+  .dlg em{color:#7fd6ff;font-style:normal}
+  .mark{display:flex;gap:6px}
+  .mark span{font-size:11px;padding:4px 11px;border-radius:6px;background:#122449;border:1px solid #244080;color:#cfe3ff}
+  .mark span.on{background:#17a96b;border-color:#2fe0a0;color:#fff}
+  .stat{display:flex;gap:12px;text-align:center;margin-top:12px}
+  .stat div{flex:1;background:#0e1c3e;border:1px solid #203861;border-radius:10px;padding:10px}
+  .stat b{display:block;font-size:20px;color:#7fd6ff}
+  .stat span{font-size:10.5px;color:#788fc0}
+  @media(max-width:1100px){.c8,.c4,.c6,.c5,.c7{grid-column:span 12}}
+</style>
+</head>
+<body>
+<div class="head"><h1><i></i>系统界面演示合集 · AIGC 课程知识图谱</h1><span>教师端 + 学生端关键界面</span></div>
+<div class="grid">
+
+  <!-- 登录 -->
+  <div class="card c12"><h2><em></em>登录 · 双角色<small>教师 / 学生 功能隔离</small></h2>
+    <div class="win"><div class="bar"><i></i><i></i><i></i><span class="ttl">AIGC 课程知识图谱 · 登录</span></div>
+    <div style="display:flex;gap:18px;padding:16px;flex-wrap:wrap;justify-content:center">
+      <div style="background:#0e1c3e;border:1px solid #203861;border-radius:11px;padding:14px 16px;text-align:center"><div style="font-size:16px">👩‍🏫</div><b style="font-size:14px">教师端</b><div style="font-size:11px;color:#7a94c2;margin-top:3px">课程管理 · 上传构图 · 图谱编辑 · 高级分析</div></div>
+      <div style="background:#0e1c3e;border:1px solid #203861;border-radius:11px;padding:14px 16px;text-align:center"><div style="font-size:16px">👨‍🎓</div><b style="font-size:14px">学生端</b><div style="font-size:11px;color:#7a94c2;margin-top:3px">图谱浏览 · 掌握标记 · 学习路径 · AI 问答</div></div>
+    </div></div>
+  </div>
+
+  <!-- 教师：课程管理 + 上传 -->
+  <div class="card c7"><h2><em></em>教师端 · 课程管理与文件上传<small>按内容自动分类</small></h2>
+    <div class="win"><div class="bar"><i></i><i></i><i></i><span class="ttl">teacher · 课程管理</span></div>
+    <div style="padding:14px">
+      <div style="font-size:12px;color:#9fd0ff;margin-bottom:8px">课程下拉（模板分组，无数字）</div>
+      <div><span class="chip">机器学习-导论</span><span class="chip">机器学习-线性回归</span><span class="chip">机器学习-分类算法</span><span class="chip">机器学习-聚类与降维</span><span class="chip">机器学习-模型评估</span>
+        <span class="chip">深度学习-神经网络基础</span><span class="chip">深度学习-卷积神经网络</span><span class="chip">深度学习-序列建模</span><span class="chip">深度学习-Transformer与注意力机制</span></div>
+      <div style="margin-top:14px"><div class="uz"><b>＋ 拖拽或点击上传</b><div style="font-size:11.5px">支持 md / docx / pdf / pptx · 自动分类</div></div></div>
+      <div style="margin-top:10px"><span class="chip">机器学习-导论.md <b>讲课材料</b></span><span class="chip">第3章习题.docx <b>习题</b></span><span class="chip">试卷A.pdf <b>试卷</b></span></div>
+    </div></div>
+  </div>
+
+  <!-- 教师：图谱可视化 -->
+  <div class="card c5"><h2><em></em>教师端 · 交互式知识图谱<small>ECharts 力导向</small></h2>
+    <div class="win"><div class="bar"><i></i><i></i><i></i><span class="ttl">graph · 机器学习-线性回归</span></div>
+    <div style="height:300px;padding:6px" id="g1"></div></div>
+    <div class="stat"><div><b>25</b><span>知识点</span></div><div><b>21</b><span>关系</span></div><div><b>点选定义</b><span>交互</span></div><div><b>JSON 导出</b><span>图谱 assets</span></div></div>
+  </div>
+
+  <!-- 教师：AIGC 抽取 -->
+  <div class="card c6"><h2><em></em>教师端 · DeepSeek 三元组抽取<small>真实大模型</small></h2>
+    <div class="win"><div class="bar"><i></i><i></i><i></i><span class="ttl">llm · extractor=deepseek</span></div>
+    <div style="padding:12px"><ul class="tri">
+      <li><span class="e">机器学习</span>has_part<span class="e">监督学习</span></li>
+      <li><span class="e">监督学习</span>has_part<span class="e">线性回归</span></li>
+      <li><span class="e">线性回归</span>uses<span class="e">梯度下降</span></li>
+      <li><span class="e">过拟合</span>reduces<span class="e">正则化</span></li>
+      <li><span class="e">线性回归</span>related<span class="e">逻辑回归</span></li>
+    </ul></div></div>
+  </div>
+
+  <!-- 教师：高级分析 -->
+  <div class="card c6"><h2><em></em>教师端 · 高级分析<small>核心知识点 / 分类统计</small></h2>
+    <div id="g2" style="height:120px"></div>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><span class="chip">核心知识点定位</span><span class="chip">分类占比</span><span class="chip">孤立节点检测</span><span class="chip">知识检索高亮</span></div>
+  </div>
+
+  <!-- 学生：学习路径 -->
+  <div class="card c5"><h2><em></em>学生端 · 掌握标记与学习路径<small>图遍历 · 个性化</small></h2>
+    <div class="win"><div class="bar"><i></i><i></i><i></i><span class="ttl">student · 学习路径</span></div>
+    <div style="padding:13px">
+      <div style="margin-bottom:10px"><div style="font-size:11px;color:#9fd0ff">我的掌握状态</div><div class="mark" style="margin-top:5px"><span>未掌握</span><span>学习中</span><span class="on">已掌握</span></div></div>
+      <div style="font-size:11px;color:#9fd0ff;margin-top:6px">推荐学习路径</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap">
+        <span class="chip" style="border-color:#17a96b">线性回归 ✓</span><span style="color:#7a94c2">→</span><span class="chip">逻辑回归</span><span style="color:#7a94c2">→</span><span class="chip">朴素贝叶斯</span><span style="color:#7a94c2">→</span><span class="chip">神经网络</span>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- 学生：AI 助手 -->
+  <div class="card c7"><h2><em></em>学生端 · AI 助手 RAG 问答<small>检索文档切片 + 图谱三元组 · 语音输入</small></h2>
+    <div class="win"><div class="bar"><i></i><i></i><i></i><span class="ttl">assistant · 会话</span></div>
+    <div style="padding:13px">
+      <div class="dlg q">问：什么是过拟合？如何避免？ 🎤</div>
+      <div class="dlg a">答：模型在训练集表现好但泛化能力弱。可引入 <em>L1/L2 正则化</em> 与 <em>交叉验证</em> 来抑制过拟合，也可增加数据量。相关节点：「过拟合」「正则化」。</div>
+      <div style="margin-top:8px;display:flex;gap:6px"><span class="chip" style="border-color:#3f7dcf">🎤 语音输入</span><span class="chip" style="border-color:#3f7dcf">⬇ 导出会话</span></div>
+    </div></div>
+  </div>
+
+</div>
+<script>
+  const C={概念:'#3ddc97',方法:'#5a4bff',算法:'#ff9f43',指标:'#ff5b8f',术语:'#2e9bff'};
+  function draw(el, n, h){
+    const e=echarts.init(document.getElementById(el));
+    e.setOption({backgroundColor:'transparent',tooltip:{show:false},
+      series:[{type:'graph',layout:'force',roam:false,force:{repulsion:120,gravity:.12,edgeLength:70},
+        label:{show:true,fontSize:10,color:'#e3edff'},edgeSymbol:['none','arrow'],edgeSymbolSize:5,
+        lineStyle:{color:'#3f7dcf',width:1,curveness:.25,opacity:.75},itemStyle:{shadowBlur:12},
+        nodes:n.map(x=>({name:x[0],category:x[1],symbolSize:x[2]||18,itemStyle:{color:C[x[1]]||'#2e9bff'}})),
+        links:[]}],height:h});
+    return e;
+  }
+  const g1=echarts.getInstanceByDom(document.getElementById('g1'))||draw('g1',[['机器学习','概念',32],['监督学习','方法',22],['线性回归','算法',24],['梯度下降','算法',20],['损失函数','概念',18],['过拟合','概念',18],['正则化','方法',18],['交叉验证','方法',18],['逻辑回归','算法',18]],260);
+  g1.setOption({series:[{type:'graph',links:[['机器学习','监督学习'],['监督学习','线性回归'],['监督学习','逻辑回归'],['线性回归','梯度下降'],['线性回归','损失函数'],['线性回归','过拟合'],['过拟合','正则化'],['过拟合','交叉验证']].map(l=>({source:l[0],target:l[1]}))}]});
+  echarts.init(document.getElementById('g2')).setOption({backgroundColor:'transparent',tooltip:{show:false},
+    series:[{type:'pie',radius:['46%','72%'],center:['50%','50%'],label:{show:false},labelLine:{show:false},
+      itemStyle:{borderColor:'#0b1324',borderWidth:2},
+      data:[{value:8,name:'概念',itemStyle:{color:'#3ddc97'}},{value:7,name:'算法',itemStyle:{color:'#ff9f43'}},{value:6,name:'方法',itemStyle:{color:'#5a4bff'}},{value:4,name:'术语',itemStyle:{color:'#2e9bff'}}]}]});
+</script>
+</body>
+</html>

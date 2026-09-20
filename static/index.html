@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIGC 课程知识图谱系统</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+  :root{--bg:#0e1424;--panel:#171f36;--line:#27314d;--acc:#5b8cff;--acc2:#ff8a5b;
+        --txt:#e7ecf7;--muted:#8a95b3;--good:#3ddc97;--danger:#ff5b5b;--edit:#ffcc5b}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--txt)}
+  header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+  header h1{font-size:18px;margin:0;font-weight:700}
+  .badge{font-size:11px;color:var(--acc2);border:1px solid var(--acc2);border-radius:999px;padding:2px 8px}
+  .mode-badge{font-size:11px;border-radius:999px;padding:2px 10px;font-weight:600}
+  .mode-badge.browse{background:#1a2440;color:var(--acc)}
+  .mode-badge.edit{background:#2a2410;color:var(--edit)}
+  .wrap{display:grid;grid-template-columns:66px 1fr 380px;gap:16px;padding:16px 24px;height:calc(100vh - 60px)}
+  .sidenav{display:flex;flex-direction:column;align-items:stretch;gap:5px;height:100%;
+    background:rgba(23,31,54,.55);border:1px solid rgba(120,160,255,.10);border-radius:14px;
+    padding:10px 6px;backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05);z-index:5}
+  .nav-item{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:11px 2px;border-radius:11px;
+    color:var(--muted);font-size:10.5px;cursor:pointer;border:1px solid transparent;transition:all .18s;
+    background:linear-gradient(135deg,rgba(56,189,248,.05),rgba(139,92,246,.04));user-select:none}
+  .nav-item .ico{font-size:17px;line-height:1}
+  .nav-item:hover{color:var(--txt);border-color:rgba(120,160,255,.22)}
+  .nav-item.active{color:#fff;background:linear-gradient(180deg,#3b82f6,#1d4ed8);
+    box-shadow:0 -2px 10px rgba(59,130,246,.35),0 4px 14px rgba(37,99,235,.35)}
+  .nav-item.active::before{content:'';position:absolute;top:-1px;left:50%;transform:translateX(-50%);
+    width:26px;height:2px;background:#93c5fd;border-radius:2px}
+  .nav-divider{height:1px;background:rgba(120,160,255,.12);margin:6px 2px}
+  .nav-add{margin-top:auto;display:flex;align-items:center;justify-content:center;height:42px;border-radius:11px;
+    color:var(--muted);font-size:20px;cursor:pointer;border:1px dashed rgba(120,160,255,.28);
+    transition:all .18s;user-select:none}
+  .nav-add:hover{color:#fff;border-color:var(--acc);background:rgba(59,130,246,.12)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;position:relative}
+  #chart{width:100%;height:100%}
+  .side{display:flex;flex-direction:column;gap:12px;overflow:auto;padding:14px}
+  .side h2{font-size:13px;margin:0 0 6px;color:var(--muted);font-weight:600;letter-spacing:.04em}
+  .row{display:flex;gap:8px;margin-bottom:6px}
+  input[type=text],select,textarea{flex:1;background:#0b1120;border:1px solid var(--line);color:var(--txt);
+    padding:8px 11px;border-radius:8px;outline:none;font-size:13px}
+  input[type=text]:focus,select:focus,textarea:focus{border-color:var(--acc)}
+  button{background:var(--acc);color:#fff;border:0;padding:8px 13px;border-radius:8px;
+    cursor:pointer;font-weight:600;font-size:13px;white-space:nowrap}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  button.danger{background:var(--danger)}
+  button.edit-btn{background:var(--edit);color:#000}
+  button:hover{filter:brightness(1.15)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  .tool-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .tool-card{border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:#0e1730;cursor:pointer;
+    transition:all .15s;display:flex;flex-direction:column;gap:4px;user-select:none}
+  .tool-card:hover{border-color:var(--acc)}
+  .tool-card.sel{border-color:var(--acc);background:#14244e;box-shadow:0 0 0 1px var(--acc)}
+  .tool-card .tc-top{display:flex;align-items:center;gap:7px}
+  .tool-card .ic{width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+    font-size:13px;font-weight:800;color:#fff;flex:0 0 auto}
+  .tool-card b{font-size:13px}
+  .tool-card .eng{font-size:10px;color:var(--muted);line-height:1.35}
+  .tool-card .eng em{font-style:normal;color:var(--good)}
+  .tool-card .eng.c{color:var(--muted)}
+  .tool-card .eng.c em{color:var(--edit)}
+  @media(max-width:1200px){.tool-grid{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:900px){.tool-grid{grid-template-columns:repeat(2,1fr)}}
+  #file{background:#0b1120;border:1px solid var(--line);color:var(--muted);
+    padding:7px;border-radius:8px;width:100%;margin-bottom:6px;font-size:12px}
+  .drop-zone{display:block;background:#0b1120;border:1.5px dashed var(--line);color:var(--acc);
+    border-radius:10px;padding:16px 10px;margin-bottom:6px;text-align:center;font-size:13px;
+    cursor:pointer;transition:border-color .15s, background .15s}
+  .drop-zone:hover{border-color:var(--acc);background:#101a33}
+  .drop-zone.dragging{border-color:var(--good);background:#0d1f26}
+  .drop-hint{color:var(--muted);font-size:12px;margin-top:4px}
+  .card{background:#0b1120;border:1px solid var(--line);border-radius:10px;padding:11px;font-size:13px}
+  .card .h{color:var(--acc);font-weight:700}
+  .card pre{white-space:pre-wrap;margin:6px 0 0;color:var(--txt);line-height:1.6;font-family:inherit}
+  .tag{display:inline-block;background:#223052;color:var(--acc2);font-size:11px;border-radius:6px;padding:2px 6px;margin-left:4px}
+  .pill{display:inline-block;background:#223052;color:var(--txt);border-radius:999px;
+    padding:3px 9px;font-size:12px;margin:3px 3px 0 0;cursor:pointer;border:1px solid var(--line)}
+  .pill.on{background:var(--good);color:#06231a;border-color:var(--good)}
+  #list{margin-top:4px}
+  .empty{color:var(--muted);font-size:13px}
+  .edit-panel{display:none}
+  .edit-panel.active{display:block}
+  .browse-panel.hidden{display:none}
+  .node-detail{position:absolute;bottom:12px;left:12px;right:12px;background:rgba(11,17,32,.96);
+    border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13px;display:none;z-index:10}
+  .node-detail.show{display:block}
+  .node-detail .h{color:var(--acc);font-weight:700;font-size:14px;margin-bottom:4px}
+  .node-detail pre{white-space:pre-wrap;color:var(--txt);margin:4px 0;line-height:1.5}
+  .node-detail .actions{display:flex;gap:6px;margin-top:8px}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel);
+    border:1px solid var(--acc);color:var(--txt);padding:10px 20px;border-radius:10px;font-size:14px;
+    z-index:100;display:none}
+  .toast.show{display:block}
+  .toast.error{border-color:var(--danger)}
+  /* AI 助手聊天 */
+  .chat{display:flex;flex-direction:column;gap:8px;height:270px;overflow:auto;background:#0b1120;
+    border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px}
+  .msg{max-width:86%;padding:8px 11px;border-radius:10px;font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+  .msg.user{align-self:flex-end;background:var(--acc);color:#fff;border-bottom-right-radius:3px}
+  .msg.ai{align-self:flex-start;background:#223052;color:var(--txt);border-bottom-left-radius:3px}
+  .msg .meta{display:block;font-size:10px;color:var(--muted);margin-top:5px}
+  .msg.typing{color:var(--muted);font-style:italic}
+  .chat-quick{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+  .chat-quick .qchip{background:#1a2440;border:1px solid var(--line);color:var(--acc);
+    border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer}
+  .chat-quick .qchip:hover{background:var(--acc);color:#fff;border-color:var(--acc)}
+  .mic-live{background:var(--danger)!important;color:#fff!important;animation:micpulse 1.1s infinite}
+  @keyframes micpulse{0%,100%{opacity:1}50%{opacity:.45}}
+  /* 文件库分类标签配色 */
+  .fx{display:inline-block;font-size:11px;border-radius:6px;padding:1px 6px;margin-right:4px}
+  .fx-other{background:#2a3145;color:var(--muted)}
+  .fx-syllabus{background:#1f3a2a;color:#7fe0a5}
+  .fx-slides{background:#3a2a1f;color:#ffb37f}
+  .fx-notes{background:#202c4a;color:#8fb4ff}
+  .fx-assignments{background:#39204a;color:#d19bff}
+  .fx-exams{background:#4a2020;color:#ff9b8f}
+  .fx-lab{background:#203d4a;color:#8fe0d8}
+  .fx-reference{background:#33331f;color:#e0d17f}
+  .file-row{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:13px}
+  .file-row .fm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .file-row button{flex:0 0 auto;padding:5px 8px;font-size:12px}
+  /* 登录 / 注册 / 用户区 */
+  .auth-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:200}
+  .auth-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px 28px;width:380px;max-width:92vw}
+  .auth-card h2{margin:0;font-size:20px}
+  .auth-card .sub{color:var(--muted);font-size:13px;margin:4px 0 18px}
+  .auth-tabs{display:flex;gap:6px;margin-bottom:16px}
+  .auth-tabs button{flex:1;background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .auth-tabs button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+  .auth-card .field{margin-bottom:12px}
+  .auth-card label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+  .auth-card input,.auth-card select{width:100%}
+  .btn-main{width:100%;padding:11px;font-size:14px}
+  .auth-err{color:var(--danger);font-size:12px;min-height:16px;margin-top:10px}
+  /* 新手使用流程通用步骤卡样式（供主图谱区覆盖层 #tourHome 复用） */
+  .tour-steps{display:flex;flex-direction:column;gap:12px}
+  .tour-step{display:flex;gap:14px;align-items:flex-start;background:rgba(23,31,54,.42);border:1px solid rgba(120,160,255,.12);border-radius:12px;padding:13px 16px;backdrop-filter:blur(10px)}
+  .tour-step .no{flex:0 0 32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--acc),#7b68ee);box-shadow:0 0 12px rgba(91,140,255,.35)}
+  .tour-step b{display:block;font-size:15px;margin-bottom:3px}
+  .tour-step span{color:var(--muted);font-size:13px;line-height:1.55}
+  /* 登录后主图谱区的“新手使用流程”覆盖层 */
+  #secChart{position:relative}
+  #tourHome{position:absolute;inset:0;z-index:30;overflow:auto;display:flex;align-items:center;justify-content:center;padding:26px;background:radial-gradient(circle at 50% 38%,rgba(34,52,92,.5),rgba(9,13,31,.92));-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+  .tour-home-card{width:600px;max-width:97%;background:rgba(23,31,54,.72);border:1px solid rgba(120,160,255,.18);border-radius:16px;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .tour-home-card h1{font-size:24px;margin:0 0 4px;background:linear-gradient(90deg,var(--acc),#8f7bff,var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .tour-home-card .sub{color:var(--muted);font-size:13px;margin:0 0 16px}
+  .tour-home-card .tour-steps{gap:10px}
+  .tour-home-card .tour-step{padding:11px 14px}
+  .tour-home-card .tour-step b{font-size:14px}
+  .tour-cta{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+  .user-area{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .user-area.hidden{display:none}
+  .user-chip{font-size:12px;background:#223052;border:1px solid var(--line);padding:4px 12px;border-radius:999px}
+  .user-chip .role{color:var(--acc2);font-weight:700}
+</style>
+</head>
+<body>
+<div class="auth-overlay" id="auth">
+  <div class="auth-card">
+    <h2>AIGC 课程知识图谱</h2>
+    <div class="sub">基于 AIGC 的课程知识图谱智能构建与学习导航</div>
+    <div class="auth-tabs">
+      <button type="button" id="tabLogin" class="on" onclick="switchAuthTab('login')">登录</button>
+      <button type="button" id="tabReg" onclick="switchAuthTab('reg')">注册</button>
+    </div>
+    <div id="formLogin">
+      <div class="field"><label>用户名</label><input type="text" id="loginUser" placeholder="请输入用户名"></div>
+      <div class="field"><label>密码</label><input type="password" id="loginPass" placeholder="请输入密码"></div>
+      <button type="button" class="btn-main" onclick="doLogin()">登 录</button>
+    </div>
+    <div id="formReg" style="display:none">
+      <div class="field"><label>用户名</label><input type="text" id="regUser" placeholder="请输入用户名"></div>
+      <div class="field"><label>密码</label><input type="password" id="regPass" placeholder="请输入密码"></div>
+      <div class="field"><label>身份</label>
+        <select id="regRole">
+          <option value="student">学生</option>
+          <option value="teacher">教师</option>
+        </select>
+      </div>
+      <button type="button" class="btn-main" onclick="doRegister()">注 册 并 登 录</button>
+    </div>
+    <div class="auth-err" id="authErr"></div>
+  </div>
+</div>
+<header>
+  <h1>AIGC 课程知识图谱</h1>
+  <span class="mode-badge browse" id="modeBadge">浏览模式</span>
+  <span class="badge" id="extractorBadge" style="display:none">DeepSeek</span>
+  <span style="font-size:12px;color:var(--muted)">上传文档 → 知识抽取 → 图谱可视化 → 问答 / 路径推荐</span>
+  <div class="user-area hidden" id="userArea">
+    <span class="user-chip" id="userChip"></span>
+    <button type="button" id="btnLogout" class="ghost">退出登录</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav class="sidenav" id="sidenav"></nav>
+  <div class="panel" id="secChart">
+    <div id="chart"></div>
+    <div id="tourHome">
+      <div class="tour-home-card">
+        <div class="brand" style="color:var(--acc2);font-size:11px;letter-spacing:2px;margin-bottom:6px">AIGC · 课程知识图谱</div>
+        <h1>新手使用流程</h1>
+        <p class="sub">三步上手，把课程文档变成看得懂的知识图谱，并支持 AI 问答与学习导航。</p>
+        <div class="tour-steps">
+          <div class="tour-step"><div class="no">1</div><div><b>注册 / 登录账号</b><span>选择「学生」或「教师」身份，教师可上传构建图谱，学生可问答与学习导航。</span></div></div>
+          <div class="tour-step"><div class="no">2</div><div><b>添加课程并上传文档</b><span>新建或选模板课程（机器学习 / 深度学习），把讲义、课件拖入，系统按内容自动分类。</span></div></div>
+          <div class="tour-step"><div class="no">3</div><div><b>自动构建知识图谱</b><span>上传即触发真实大模型（DeepSeek）抽取实体与关系，一键生成可缩放、可点选的课程图谱。</span></div></div>
+          <div class="tour-step"><div class="no">4</div><div><b>讲解 · 问答 · 学情</b><span>点击节点看概念定义，用 AI 助手智能问答，学生端可得个人学习路径推荐。</span></div></div>
+          <div class="tour-step"><div class="no">5</div><div><b>教师专属高级分析</b><span>知识点统计、核心定位、分类图表与图谱导出，辅助备课与教学。</span></div></div>
+        </div>
+        <div class="tour-cta">
+          <button type="button" class="btn-main" style="flex:1" onclick="startTour()">开始使用 · 构建我的图谱</button>
+          <button type="button" class="ghost" style="flex:1" onclick="startTourChoose()">选择已有课程载入</button>
+        </div>
+      </div>
+    </div>
+    <div class="node-detail" id="nodeDetail">
+      <div class="h" id="ndTitle"></div>
+      <pre id="ndDef"></pre>
+      <div class="actions" id="ndActions"></div>
+    </div>
+  </div>
+
+  <div class="side">
+    <!-- 课程导览（首屏首页） -->
+    <section id="secTour">
+      <h2>课程导览</h2>
+      <div id="tourContent" class="card"><span class="empty">载入或构建图谱后，这里将显示课程概览、知识点构成与学习路线。</span></div>
+    </section>
+
+    <!-- 课程管理 -->
+    <section>
+      <h2>课程管理</h2>
+      <div class="row">
+        <input type="text" id="course" value="机器学习" placeholder="课程名称">
+        <button id="btnLoad" class="ghost">载入</button>
+        <button id="btnRefreshCourses" class="ghost">刷新</button>
+      </div>
+      <select id="courseList" style="margin-bottom:6px">
+        <option value="">— 选择或切换已有课程 —</option>
+      </select>
+      <div class="row" style="margin-top:6px">
+        <button id="btnAddCourse" style="flex:1;background:var(--good);color:#06231a" title="用上方课程名称新建一门课程（名称不能含数字）">＋ 添加课程</button>
+        <button id="btnDelCourse" class="danger" style="flex:1" title="删除当前课程的图谱及其课程文件">删除当前课程</button>
+      </div>
+    </section>
+
+    <!-- 构建图谱（教师专属） -->
+    <section id="buildSec">
+      <h2>构建图谱</h2>
+      <input type="file" id="file" accept="*">
+      <button id="btnBuild" style="width:100%">上传并生成知识图谱</button>
+      <div id="buildInfo" class="card" style="margin-top:6px"><span class="empty">尚未构建。上传文档后自动抽取。</span></div>
+    </section>
+
+    <!-- 模式切换（教师专属） -->
+    <section id="editSec">
+      <h2>图谱操作</h2>
+      <div class="row">
+        <button id="btnEditToggle" class="ghost" style="flex:1">进入编辑模式</button>
+      </div>
+    </section>
+
+    <!-- 学生面板（AI 助手 + 路径推荐，仅学生可见） -->
+    <div id="studentPanel" style="display:none">
+      <section id="secAIStudent">
+        <h2>AI 学习助手 <span class="tag" id="chatModeTag" style="display:none"></span></h2>
+        <div class="row" style="margin-bottom:6px;gap:6px">
+          <label style="font-size:12px;color:var(--muted)">模型源</label>
+          <select id="aiSource" style="flex:1">
+            <option value="deepseek">DeepSeek</option>
+            <option value="doubao">豆包</option>
+          </select>
+          <span id="aiSourceState" style="font-size:11px;color:var(--muted)"></span>
+        </div>
+        <div id="chatBox" class="chat"><span class="msg ai">你好，我是这门课的 AI 助教 👋 已在你选择的大模型上直接回答（豆包 / DeepSeek），可以问我知识点、概念关系，甚至出一题练习，大胆提问吧！</span></div>
+        <div id="chatQuick" class="chat-quick"></div>
+        <div class="row">
+          <input type="text" id="q" placeholder="输入你的问题，例如：什么是逻辑回归？">
+          <button id="btnMic" class="ghost" title="语音输入" style="flex:0 0 auto">语音</button>
+          <button id="btnAsk">发送</button>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <select id="exportFmt" style="flex:1">
+            <option value="html">导出 HTML 展示页</option>
+            <option value="markdown">导出 Markdown</option>
+            <option value="json">导出 JSON</option>
+            <option value="txt">导出 TXT</option>
+          </select>
+          <button id="btnExportChat" class="ghost">导出会话</button>
+        </div>
+        <button id="btnClearChat" class="ghost" style="width:100%;margin-top:6px">清空对话</button>
+      </section>
+
+      <section id="secRec">
+        <h2>学习路径推荐</h2>
+        <div id="checkWrap" class="card"><div class="h">点击标记已掌握知识点</div><div id="list"></div></div>
+        <button id="btnRec" style="width:100%;margin-top:6px">推荐下一步学习</button>
+        <div id="recChips" style="margin-top:6px"></div>
+      </section>
+    </div>
+
+    <!-- 教师工作台（AI 工具辅助 + 高级分析，仅教师可见） -->
+    <div id="teacherPanel" style="display:none">
+      <section id="secAITeacher">
+        <h2>AI 工具辅助备课 <span class="mode-badge browse" style="margin-left:6px">豆包 · DeepSeek 页面内直接使用</span></h2>
+        <div id="aiToolGrid" class="tool-grid"></div>
+        <input type="text" id="aiTask" placeholder="给选中的 AI 工具布置任务，如：为「过拟合」生成 3 道测验题" style="margin-bottom:6px;margin-top:8px">
+        <button id="btnAiGen" style="width:100%;margin-bottom:4px">生成教学辅助内容</button>
+        <div id="aiOut" class="card" style="margin-top:6px"><span class="empty">点选上方任一 AI 工具，输入教学任务，即可在此页面直接生成内容。</span></div>
+      </section>
+
+      <section>
+        <h2>核心知识点分析</h2>
+        <button id="btnAnalyze" class="ghost" style="width:100%">运行结构分析</button>
+        <div id="analyzeOut" class="card" style="margin-top:6px"><span class="empty">统计节点出入度、TOP 核心知识点并检测孤立节点。</span></div>
+      </section>
+
+      <section>
+        <h2>知识点搜索 / 定位</h2>
+        <div class="row"><input type="text" id="searchNode" placeholder="输入知识点名称，在图谱中高亮定位"><button id="btnSearch" class="ghost">定位</button></div>
+      </section>
+
+      <section>
+        <h2>导出与统计</h2>
+        <div class="row">
+          <button id="btnExportJson" class="ghost" style="flex:1">导出图谱 JSON</button>
+          <button id="btnStat" class="ghost" style="flex:1">分类统计</button>
+        </div>
+        <div id="statOut" class="card" style="margin-top:6px"><span class="empty">运行后显示知识点分类统计与图谱规模。</span></div>
+      </section>
+
+      <section id="secFileLib">
+        <h2>课程文件库（按内容自动分类）</h2>
+        <label id="fileDrop" class="drop-zone" title="支持任意格式（PPT/PDF/Word/Excel 等自动解析），可一次拖入多个">将课程文件拖到这里，或点击选择文件
+          <div class="drop-hint">任意格式均可上传 · PPT / PDF / Word / Excel 自动解析文本建图</div>
+          <input type="file" id="fileLib" multiple accept="*" style="display:none">
+        </label>
+        <button id="btnUploadFiles" style="width:100%">上传并自动分类</button>
+        <div class="row" style="margin-top:6px">
+          <button id="btnRefreshFiles" class="ghost" style="flex:1">刷新文件列表</button>
+          <button id="btnScopeFiles" class="ghost" style="flex:1">列出全部文件</button>
+        </div>
+        <div style="margin-top:8px;color:var(--muted);font-size:13px" id="fileStat"></div>
+        <div id="fileList" class="card" style="margin-top:6px"><span class="empty">上传课程文档后按内容归入：教学大纲/课件/讲义/习题/试卷/实验/参考，可一键用某文件生成知识图谱。</span></div>
+      </section>
+    </div>
+
+    <!-- 编辑模式面板 -->
+    <div class="edit-panel" id="editPanel">
+      <section>
+        <h2>添加知识点</h2>
+        <input type="text" id="newNodeName" placeholder="知识点名称" style="margin-bottom:6px">
+        <select id="newNodeKind" style="margin-bottom:6px">
+          <option value="概念">概念</option>
+          <option value="公式">公式</option>
+          <option value="定理">定理</option>
+          <option value="算法">算法</option>
+          <option value="术语">术语</option>
+          <option value="方法">方法</option>
+        </select>
+        <input type="text" id="newNodeDef" placeholder="一句话定义" style="margin-bottom:6px">
+        <button id="btnAddNode" style="width:100%">添加节点</button>
+      </section>
+
+      <section>
+        <h2>添加关系</h2>
+        <select id="edgeSource" style="margin-bottom:6px"><option value="">源知识点</option></select>
+        <select id="edgeTarget" style="margin-bottom:6px"><option value="">目标知识点</option></select>
+        <select id="edgeType" style="margin-bottom:6px">
+          <option value="pre">前置（学习前需掌握）</option>
+          <option value="has_part">包含</option>
+          <option value="related">相关</option>
+          <option value="applies_to">应用</option>
+          <option value="contrast">对比</option>
+        </select>
+        <button id="btnAddEdge" style="width:100%">添加关系</button>
+      </section>
+
+      <section>
+        <h2>删除关系</h2>
+        <div class="row">
+          <select id="delEdgeSource" style="flex:1"><option value="">源</option></select>
+          <select id="delEdgeTarget" style="flex:1"><option value="">目标</option></select>
+        </div>
+        <button id="btnDelEdge" class="danger" style="width:100%">删除选中的关系</button>
+      </section>
+
+      <section>
+        <h2>编辑知识点</h2>
+        <input type="text" id="editNodeName" placeholder="待编辑知识点（点击节点自动填充）" style="margin-bottom:6px" readonly>
+        <input type="text" id="editNodeNewName" placeholder="新名称（留空则不修改）" style="margin-bottom:6px">
+        <select id="editNodeKind" style="margin-bottom:6px">
+          <option value="">类型（不修改）</option>
+          <option value="概念">概念</option>
+          <option value="公式">公式</option>
+          <option value="定理">定理</option>
+          <option value="算法">算法</option>
+          <option value="术语">术语</option>
+          <option value="方法">方法</option>
+        </select>
+        <input type="text" id="editNodeDef" placeholder="新定义（留空则不修改）" style="margin-bottom:6px">
+        <button id="btnEditNode" class="edit-btn" style="width:100%">保存修改</button>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const CHART = echarts.init(document.getElementById('chart'), null, { renderer: 'svg' });
+let NODES = []; let LINKS = [];
+let editMode = false;
+let currentCourse = '';
+
+function toast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => t.className = 'toast', 2500);
+}
+
+function refreshChart() {
+  const tourHome = document.getElementById('tourHome');
+  if (tourHome) tourHome.style.display = (NODES && NODES.length) ? 'none' : '';
+  const cats = [...new Set(NODES.map(n => n.category))];
+  const NODE_COLOR = {
+    '概念': '#39d2ff', '方法': '#b06bff', '算法': '#ff8a5b',
+    '术语': '#3d7bff', '定理': '#ff5bd0', '公式': '#3ddc97', '应用': '#ffcc5b'
+  };
+  const nodeColor = c => NODE_COLOR[c] || '#5b8cff';
+  const isHub = c => c === '方法' || c === '概念' || c === '算法';
+  const hubBlur = { '方法': 34, '算法': 26, '概念': 22 };
+  const bgGlow = new echarts.graphic.RadialGradient(0.5, 0.55, 0.95, [
+    { offset: 0, color: 'rgba(34,52,92,0.95)' },
+    { offset: 0.62, color: 'rgba(20,30,62,1)' },
+    { offset: 1, color: 'rgba(9,13,31,1)' }
+  ]);
+  CHART.setOption({
+    backgroundColor: bgGlow,
+    tooltip: {
+      backgroundColor: 'rgba(23,31,54,0.92)', borderColor: 'rgba(120,160,255,0.35)',
+      borderWidth: 1, textStyle: { color: '#e7ecf7' }
+    },
+    legend: { textStyle: { color: '#8a95b3' } },
+    series: [{
+      type: 'graph', layout: 'force', roam: true, draggable: true,
+      data: NODES.map(n => {
+        const col = nodeColor(n.category);
+        return Object.assign({}, n, {
+          itemStyle: {
+            color: col,
+            borderColor: 'rgba(231,236,247,0.65)',
+            borderWidth: isHub(n.category) ? 2 : 1.5,
+            shadowColor: col,
+            shadowBlur: hubBlur[n.category] || 15,
+            opacity: 0.97
+          },
+          label: { show: true, position: 'right', color: '#dbe4ff', fontSize: 12,
+                   textShadowColor: 'rgba(0,0,0,0.6)', textShadowBlur: 6 }
+        });
+      }),
+      links: LINKS,
+      lineStyle: {
+        color: 'rgba(96,146,255,0.5)', width: 1.8, curveness: 0.3, opacity: 0.9,
+        shadowColor: 'rgba(91,140,255,0.75)', shadowBlur: 8
+      },
+      emphasis: {
+        focus: 'adjacency',
+        lineStyle: { width: 3.5, color: '#7fb0ff', shadowBlur: 14, shadowColor: '#7fb0ff' },
+        itemStyle: { shadowBlur: 42, borderColor: '#ffffff' }
+      },
+      edgeLabel: {
+        fontSize: 10, color: '#b7c2e2',
+        backgroundColor: 'rgba(23,31,54,0.78)', borderColor: 'rgba(120,160,255,0.3)',
+        borderWidth: 1, borderRadius: 8, padding: [2, 6]
+      },
+      force: { repulsion: 850, edgeLength: 120, gravity: 0.12 },
+      categories: cats.map(c => ({ name: c }))
+    }]
+  }, true);
+}
+
+function renderGraph(g, info) {
+  NODES = g.nodes.map(n => ({
+    name: n.name, value: n.definition || n.category,
+    category: n.category, definition: n.definition,
+    symbolSize: n.category === '方法' ? 44 : (n.category === '算法' ? 52 : 36)
+  }));
+  LINKS = g.links.map(l => ({
+    source: l.source, target: l.target,
+    label: { show: true, formatter: l.label }, type: l.type
+  }));
+  const infoHtml = info ? '<span class="tag">' + info + '</span>' : '';
+  document.getElementById('buildInfo').innerHTML =
+    '<span class="h">✓ 图谱已生成：' + g.nodes.length + ' 个知识点 / ' + g.links.length + ' 条关系</span>' + infoHtml;
+  refreshChart();
+  renderMasterList();
+  populateNodeSelectors();
+  renderTour();
+  CHART.on('click', p => {
+    if (p.dataType === 'node') showNodeDetail(p.data);
+    else if (p.dataType === 'edge' && editMode) toast('点击端点节点可在详情中删除关系');
+  });
+}
+
+// 课程导览：概览知识点构成并按概念→方法→算法给出推荐学习路线
+const TOUR_ORDER = ['概念', '术语', '定理', '方法', '算法', '公式', '应用'];
+function renderTour() {
+  const box = document.getElementById('tourContent');
+  const courseName = document.getElementById('course').value.trim() || '默认课程';
+  if (!NODES.length) {
+    box.innerHTML = '<span class="empty">载入或构建图谱后，这里将显示「' + escapeHtml(courseName) +
+      '」的课程概览信息。</span>';
+    return;
+  }
+  const byCat = {};
+  NODES.forEach(n => { byCat[n.category] = (byCat[n.category] || 0) + 1; });
+  const catRows = Object.entries(byCat).length
+    ? Object.entries(byCat).map(([c, n]) => '<span class="fx" style="background:#223052;color:var(--acc)">' +
+        escapeHtml(c) + ' × ' + n + '</span>').join('')
+    : '<span class="empty">暂无分类</span>';
+  const present = TOUR_ORDER.filter(c => byCat[c]);
+  const route = present.length
+    ? present.map(c => '<span style="color:var(--acc)">' + escapeHtml(c) + '</span>')
+        .join('<span style="color:var(--muted);margin:0 5px">›</span>')
+    : '<span class="empty">图谱暂无可提取的学习路线</span>';
+  // 教师端不展示推荐学习路线与知识点构成（属于学生端功能）
+  const isTeacher = CURRENT_ROLE.role === 'teacher';
+  const detailHtml = isTeacher ? '' :
+    '<div style="margin-top:9px;font-size:12px"><b style="color:var(--acc2)">知识点构成</b>' +
+      '<div style="margin-top:5px;line-height:1.9">' + catRows + '</div></div>' +
+    '<div style="margin-top:9px;font-size:12px"><b style="color:var(--acc2)">推荐学习路线</b>' +
+      '<div style="margin-top:5px;line-height:1.9">' + route + '</div></div>';
+  box.innerHTML =
+    '<div class="h" style="font-size:14px">' + escapeHtml(courseName) + '</div>' +
+    '<div style="margin-top:4px;color:var(--muted);font-size:12px">共 ' + NODES.length + ' 个知识点 / ' + LINKS.length + ' 条关系</div>' +
+    detailHtml;
+}
+
+function showNodeDetail(node) {
+  const detail = document.getElementById('nodeDetail');
+  document.getElementById('ndTitle').textContent = node.category + ' · ' + node.name;
+  document.getElementById('ndDef').textContent = node.definition || '暂无定义';
+  const actions = document.getElementById('ndActions');
+  if (editMode) {
+    actions.innerHTML = '<button onclick="editNode(\'' + node.name.replace(/'/g, "\\'") + '\')">编辑节点</button>' +
+      '<button class="danger" onclick="deleteNode(\'' + node.name.replace(/'/g, "\\'") + '\')">删除此节点</button>';
+  } else {
+    actions.innerHTML = '';
+  }
+  detail.classList.add('show');
+}
+
+window.editNode = function(name) {
+  document.getElementById('editNodeName').value = name;
+  document.getElementById('editNodeNewName').value = '';
+  document.getElementById('editNodeKind').value = '';
+  document.getElementById('editNodeDef').value = '';
+  toast('已选中「' + name + '」，请填写要修改的内容');
+};
+
+document.getElementById('btnEditNode').onclick = async () => {
+  const oldName = document.getElementById('editNodeName').value.trim();
+  if (!oldName) { toast('请先点击一个节点，或输入待编辑知识点', true); return; }
+  const newName = document.getElementById('editNodeNewName').value.trim();
+  const kind = document.getElementById('editNodeKind').value;
+  const def = document.getElementById('editNodeDef').value.trim();
+  const payload = {};
+  if (newName) payload.name = newName;
+  if (kind) payload.kind = kind;
+  if (def) payload.definition = def;
+  if (!Object.keys(payload).length) { toast('请至少填写一项要修改的内容', true); return; }
+  try {
+    const d = await apiCall('/api/graph/' + encodeURIComponent(currentCourse) + '/node/' + encodeURIComponent(oldName), 'PUT', payload);
+    renderGraph(d.graph);
+    document.getElementById('editNodeNewName').value = '';
+    document.getElementById('editNodeKind').value = '';
+    document.getElementById('editNodeDef').value = '';
+    toast('节点已更新');
+  } catch(e) { toast(e.message, true); }
+};
+
+window.deleteNode = async function(name) {
+  if (!confirm('确认删除知识点「' + name + '」及其所有关系？')) return;
+  await apiCall('/api/graph/' + encodeURIComponent(currentCourse) + '/node/' + encodeURIComponent(name), 'DELETE');
+  toast('节点已删除');
+  await reloadGraph();
+};
+
+function renderMasterList() {
+  const box = document.getElementById('list');
+  const on = new Set();
+  box.innerHTML = NODES.map(n => '<span class="pill" data-n="' + escapeAttr(n.name) + '">' + escapeHtml(n.name) + '</span>').join('');
+  box.querySelectorAll('.pill').forEach(el => el.onclick = () => {
+    el.classList.toggle('on');
+    on.has(el.dataset.n) ? on.delete(el.dataset.n) : on.add(el.dataset.n);
+    window.__mastered = on;
+  });
+  window.__mastered = on;
+}
+
+function populateNodeSelectors() {
+  const names = NODES.map(n => n.name);
+  ['edgeSource', 'edgeTarget', 'delEdgeSource', 'delEdgeTarget'].forEach(id => {
+    const sel = document.getElementById(id);
+    const val = sel.value;
+    sel.innerHTML = '<option value="">' + (id.includes('del') ? '选择节点' : '知识点') + '</option>' +
+      names.map(n => '<option value="' + escapeAttr(n) + '">' + escapeHtml(n) + '</option>').join('');
+    sel.value = val;
+  });
+}
+
+async function apiCall(path, method, body) {
+  const headers = {};
+  const t = localStorage.getItem('kg_token');
+  if (t) headers['Authorization'] = 'Bearer ' + t;
+  const opts = { method, headers };
+  if (body) {
+    if (body instanceof FormData) { opts.body = body; }
+    else { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  }
+  const r = await fetch(path, opts);
+  if (!r.ok) {
+    if (r.status === 401) doLogout();
+    const err = await r.json().catch(() => ({ detail: r.statusText }));
+    throw new Error(err.detail || r.statusText);
+  }
+  return r.json();
+}
+
+async function reloadGraph() {
+  const g = await apiCall('/api/graph/' + encodeURIComponent(currentCourse));
+  renderGraph(g);
+}
+
+// --- 认证与角色切换 ---
+function setAuthErr(m) { document.getElementById('authErr').textContent = m || ''; }
+function setUserChip(username, role) {
+  const zh = role === 'teacher' ? '教师' : '学生';
+  document.getElementById('userChip').innerHTML =
+    '<span style="color:var(--acc)">' + escapeHtml(username) + '</span> <span class="role">' + zh + '</span>';
+}
+const CURRENT_ROLE = { role: 'student' };
+function applyRole(role) {
+  const T = role === 'teacher';
+  CURRENT_ROLE.role = role;
+  document.getElementById('buildSec').style.display = T ? '' : 'none';
+  document.getElementById('editSec').style.display = T ? '' : 'none';
+  document.getElementById('teacherPanel').style.display = T ? '' : 'none';
+  document.getElementById('studentPanel').style.display = T ? 'none' : '';
+  if (!T && editMode) exitEdit();
+  if (T) { loadAiTools('teacher'); loadFileLib(); }
+  loadAiSources();
+}
+function loadAiSources() {
+  const el = document.getElementById('aiSourceState');
+  if (!el) return;
+  try {
+    apiCall('/api/ai/providers').then(d => {
+      if (!d || !d.providers) return;
+      const used = (document.getElementById('aiSource') || {}).value || 'deepseek';
+      const allOk = d.providers.every(p => p.configured);
+      if (allOk) el.textContent = '· 已启用真实模型';
+      else if (d.providers.some(p => p.configured)) el.textContent = '· 真实模型可用（演示降级兜底）';
+      else el.textContent = '· 演示模式';
+    }).catch(() => {});
+  } catch (e) {}
+}
+function showAuth() { document.getElementById('auth').style.display = 'flex'; }
+function hideAuth() { document.getElementById('auth').style.display = 'none'; }
+function switchAuthTab(t) {
+  document.getElementById('tabLogin').className = t === 'login' ? 'on' : '';
+  document.getElementById('tabReg').className = t === 'reg' ? 'on' : '';
+  document.getElementById('formLogin').style.display = t === 'login' ? '' : 'none';
+  document.getElementById('formReg').style.display = t === 'reg' ? '' : 'none';
+  setAuthErr('');
+}
+function enterApp(me) {
+  hideAuth();
+  document.getElementById('userArea').classList.remove('hidden');
+  setUserChip(me.username, me.role);
+  applyRole(me.role);
+  buildNav(me.role);
+  currentCourse = document.getElementById('course').value;
+  refreshCourseList();
+  loadChat();
+}
+function doLogout() {
+  const t = localStorage.getItem('kg_token');
+  if (t) { try { fetch('/api/auth/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + t } }); } catch (e) {} }
+  localStorage.removeItem('kg_token');
+  document.getElementById('userArea').classList.add('hidden');
+  showAuth();
+}
+async function doLogin() {
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  if (!username || !password) { setAuthErr('请输入用户名和密码'); return; }
+  try {
+    const d = await apiCall('/api/auth/login', 'POST', { username, password });
+    localStorage.setItem('kg_token', d.token);
+    enterApp(d);
+  } catch (e) { setAuthErr(e.message); }
+}
+async function doRegister() {
+  const username = document.getElementById('regUser').value.trim();
+  const password = document.getElementById('regPass').value;
+  const role = document.getElementById('regRole').value;
+  if (!username || !password) { setAuthErr('请输入用户名和密码'); return; }
+  try {
+    const d = await apiCall('/api/auth/register', 'POST', { username, password, role });
+    localStorage.setItem('kg_token', d.token);
+    enterApp(d);
+  } catch (e) { setAuthErr(e.message); }
+}
+async function init() {
+  const t = localStorage.getItem('kg_token');
+  if (t) {
+    try { const me = await apiCall('/api/auth/me'); enterApp(me); return; }
+    catch (e) { localStorage.removeItem('kg_token'); }
+  }
+  showAuth();
+}
+window.doLogin = doLogin; window.doRegister = doRegister;
+window.doLogout = doLogout; window.switchAuthTab = switchAuthTab;
+
+// 主图谱区“新手使用流程”引导动作
+function hideTourHome() { const t = document.getElementById('tourHome'); if (t) t.style.display = 'none'; }
+function startTour() {
+  hideTourHome();
+  const el = document.getElementById('course');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function startTourChoose() {
+  hideTourHome();
+  const el = document.getElementById('courseList');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// --- 课程管理 ---
+// 预设课程模板：机器学习 / 深度学习细分，课程名均不含数字
+const COURSE_TEMPLATES = {
+  '机器学习': ['机器学习-导论', '机器学习-线性回归', '机器学习-分类算法', '机器学习-聚类与降维', '机器学习-模型评估'],
+  '深度学习': ['深度学习-神经网络基础', '深度学习-卷积神经网络', '深度学习-序列建模', '深度学习-Transformer与注意力机制'],
+};
+function cleanName(s) { return String(s || '').replace(/_\d{5,}$/g, ''); }
+
+// --- 玻璃侧边导航 ---
+const NAV_ITEMS = [
+  { id: 'nav_home',   label: '首页',    icon: '⌂', sec: 'secTour' },
+  { id: 'nav_graph',  label: '知识图谱', icon: '◍', sec: 'secChart' },
+  { id: 'nav_doc',    label: '文档管理', icon: '▤', sec: 'secFileLib', roles: ['teacher'] },
+  { id: 'nav_path',   label: '学习路径', icon: '➤', sec: 'secRec', roles: ['student'] },
+  { id: 'nav_ai',     label: 'AI助手',  icon: '◉', sec: 'secAI', kind: 'ai' },
+];
+function buildNav(role) {
+  const nav = document.getElementById('sidenav');
+  const dc = document.getElementById('btnDelCourse');
+  if (dc) dc.style.display = role === 'teacher' ? '' : 'none';
+  const ac = document.getElementById('btnAddCourse');
+  if (ac) ac.style.display = role === 'teacher' ? '' : 'none';
+  nav.innerHTML = NAV_ITEMS
+    .filter(it => !it.roles || it.roles.includes(role))
+    .map(it => '<div class="nav-item" data-sec="' + it.sec + '" data-kind="' + (it.kind || '') + '" id="' + it.id + '">' +
+      '<span class="ico">' + it.icon + '</span><span>' + it.label + '</span></div>').join('') +
+    '<div class="nav-divider"></div>' +
+    (role === 'teacher' ? '<div class="nav-add" id="navAdd" title="添加课程">＋</div>' : '');
+  nav.querySelectorAll('.nav-item').forEach(el => {
+    el.onclick = () => {
+      nav.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      el.classList.add('active');
+      if (el.dataset.kind === 'ai') {
+        const frag = document.getElementById(role === 'teacher' ? 'secAITeacher' : 'secAIStudent');
+        if (frag) frag.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        const sec = document.getElementById(el.dataset.sec);
+        if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    };
+  });
+  const add = document.getElementById('navAdd');
+  if (add) add.onclick = () => addCourse();
+  const def = document.getElementById('nav_home');
+  if (def) def.classList.add('active');
+}
+
+async function refreshCourseList() {
+  const d = await apiCall('/api/courses');
+  const sel = document.getElementById('courseList');
+  let h = '<option value="">— 选择或切换课程 —</option>';
+  Object.keys(COURSE_TEMPLATES).forEach(g => {
+    h += '<optgroup label="' + escapeHtml(g) + ' — 模板（可新建）">' +
+      COURSE_TEMPLATES[g].map(t => '<option value="' + escapeAttr(t) + '">' + escapeHtml(t) + '</option>').join('') +
+      '</optgroup>';
+  });
+  if (d.courses && d.courses.length) {
+    const already = d.courses
+      .filter(c => !(COURSE_TEMPLATES['机器学习'].concat(COURSE_TEMPLATES['深度学习']).includes(c)))
+      .filter(c => !/_\d{5,}$/.test(c)); // 隐藏数字后缀课程（测试残留等）
+    if (already.length) {
+      h += '<optgroup label="已有课程">' +
+        already.map(c => '<option value="' + escapeAttr(c) + '">' + escapeHtml(c) + '</option>').join('') +
+        '</optgroup>';
+    }
+  }
+  sel.innerHTML = h;
+}
+
+async function addCourse() {
+  const name = document.getElementById('course').value.trim();
+  if (!name) { toast('请先在上方输入课程名称', true); return; }
+  if (/\d/.test(name)) { toast('课程名称不能包含数字', true); return; }
+  try {
+    await apiCall('/api/courses', 'POST', { course_id: name });
+    currentCourse = name;
+    document.getElementById('course').value = name;
+    refreshCourseList();
+    await reloadGraph();
+    loadChat();
+    toast('已创建课程：' + name + '，可上传文件自动构建图谱');
+  } catch (e) { toast('创建失败：' + e.message, true); }
+}
+document.getElementById('btnAddCourse').onclick = addCourse;
+
+document.getElementById('btnDelCourse').onclick = async () => {
+  const c = document.getElementById('course').value.trim();
+  if (!c) { toast('请先输入或选择要删除的课程', true); return; }
+  if (!confirm('确定删除课程「' + c + '」及其图谱、课程文件吗？')) return;
+  try {
+    await apiCall('/api/graph/' + encodeURIComponent(c), 'DELETE');
+    toast('已删除课程：' + c);
+    document.getElementById('course').value = '机器学习';
+    currentCourse = '';
+    refreshCourseList();
+    reloadGraph();
+  } catch (e) { toast('删除失败：' + e.message, true); }
+};
+
+document.getElementById('btnRefreshCourses').onclick = refreshCourseList;
+
+// 选择课程：已有图谱则载入；尚未建图（如模板课程）则按模板自动生成
+async function selectCourse(name) {
+  currentCourse = name;
+  document.getElementById('course').value = name;
+  try {
+    await reloadGraph();
+  } catch (e) {
+    try {
+      const a = await apiCall('/api/graph/' + encodeURIComponent(name) + '/auto', 'POST', {});
+      if (a.graph) renderGraph(a.graph);
+      if (a.extractor === 'mock' || a.extractor === 'deepseek') {
+        document.getElementById('extractorBadge').textContent = a.extractor === 'mock' ? 'Mock' : 'DeepSeek';
+        document.getElementById('extractorBadge').style.display = 'inline-block';
+      }
+      toast(a.generated
+        ? '已按模板自动生成图谱：' + a.entities + ' 知识点 / ' + a.relations + ' 关系'
+        : '已载入：' + name);
+    } catch (e2) { toast('载入失败：' + e2.message, true); return; }
+  }
+  loadChat();
+}
+
+document.getElementById('courseList').onchange = function() {
+  if (this.value) selectCourse(this.value);
+};
+
+document.getElementById('btnLoad').onclick = async () => {
+  const name = document.getElementById('course').value.trim() || '默认课程';
+  await selectCourse(name);
+};
+
+// --- 构建图谱（智能四场景：按下拉选择与上传文件关联度自动新建/融合）---
+document.getElementById('btnBuild').onclick = async () => {
+  const file = document.getElementById('file').files[0];
+  if (!file) { toast('请先选择课程文档', true); return; }
+  const btn = document.getElementById('btnBuild');
+  const oldTxt = btn.textContent; btn.disabled = true; btn.textContent = '解析生成中…';
+  const fd = new FormData(); fd.append('file', file);
+  const selected = document.getElementById('courseList').value || '';
+  try {
+    const d = await apiCall('/api/knowledge/build?course=' + encodeURIComponent(selected), 'POST', fd);
+    currentCourse = d.course_id;
+    document.getElementById('course').value = d.course_id;
+    renderGraph(d.graph, d.extractor === 'mock' ? '模拟抽取' : 'DeepSeek 抽取');
+    document.getElementById('extractorBadge').textContent = d.extractor === 'mock' ? 'Mock' : 'DeepSeek';
+    document.getElementById('extractorBadge').style.display = 'inline-block';
+    await refreshCourseList();
+    const sel = document.getElementById('courseList');
+    if (sel.value !== d.course_id) sel.value = d.course_id;
+    const msg = d.created ? '已新建课程「' + d.course_id + '」并直接生成上传文件图谱'
+              : d.merged ? '已融合该课程已有文件与本次上传，生成综合图谱'
+              : '已直接生成上传文件对应的图谱';
+    toast(msg + '：' + d.entities + ' 知识点 / ' + d.relations + ' 关系');
+    loadChat();
+  } catch(e) { toast('构建失败：' + e.message, true); }
+  finally { btn.disabled = false; btn.textContent = oldTxt; }
+};
+
+// --- 模式切换 ---
+function exitEdit() {
+  editMode = false;
+  const badge = document.getElementById('modeBadge');
+  const btn = document.getElementById('btnEditToggle');
+  badge.textContent = '浏览模式'; badge.className = 'mode-badge browse';
+  btn.textContent = '进入编辑模式'; btn.className = 'ghost';
+  document.getElementById('editPanel').classList.remove('active');
+  document.getElementById('nodeDetail').classList.remove('show');
+}
+document.getElementById('btnEditToggle').onclick = () => {
+  editMode = !editMode;
+  const badge = document.getElementById('modeBadge');
+  const btn = document.getElementById('btnEditToggle');
+  const edit = document.getElementById('editPanel');
+  const rolePanel = document.getElementById(CURRENT_ROLE.role === 'teacher' ? 'teacherPanel' : 'studentPanel');
+  const detail = document.getElementById('nodeDetail');
+  if (editMode) {
+    badge.textContent = '编辑模式'; badge.className = 'mode-badge edit';
+    btn.textContent = '退出编辑模式'; btn.className = 'edit-btn';
+    edit.classList.add('active');
+    if (rolePanel) rolePanel.style.display = 'none';
+    detail.classList.remove('show');
+    populateNodeSelectors();
+  } else {
+    exitEdit();
+    if (rolePanel) rolePanel.style.display = '';
+  }
+};
+
+// --- 编辑：添加节点 ---
+document.getElementById('btnAddNode').onclick = async () => {
+  const name = document.getElementById('newNodeName').value.trim();
+  if (!name) { toast('请输入知识点名称', true); return; }
+  const kind = document.getElementById('newNodeKind').value;
+  const def = document.getElementById('newNodeDef').value.trim();
+  try {
+    const d = await apiCall('/api/graph/' + encodeURIComponent(currentCourse) + '/node', 'POST',
+      { name, kind, definition: def });
+    renderGraph(d.graph);
+    document.getElementById('newNodeName').value = '';
+    document.getElementById('newNodeDef').value = '';
+    toast('节点已添加');
+  } catch(e) { toast(e.message, true); }
+};
+
+// --- 编辑：添加关系 ---
+document.getElementById('btnAddEdge').onclick = async () => {
+  const source = document.getElementById('edgeSource').value;
+  const target = document.getElementById('edgeTarget').value;
+  const type = document.getElementById('edgeType').value;
+  if (!source || !target) { toast('请选择源和目标知识点', true); return; }
+  try {
+    const d = await apiCall('/api/graph/' + encodeURIComponent(currentCourse) + '/edge', 'POST',
+      { source, target, type });
+    renderGraph(d.graph);
+    toast('关系已添加');
+  } catch(e) { toast(e.message, true); }
+};
+
+// --- 编辑：删除关系 ---
+document.getElementById('btnDelEdge').onclick = async () => {
+  const source = document.getElementById('delEdgeSource').value;
+  const target = document.getElementById('delEdgeTarget').value;
+  if (!source || !target) { toast('请选择源和目标知识点', true); return; }
+  try {
+    const d = await apiCall('/api/graph/' + encodeURIComponent(currentCourse) + '/edge', 'DELETE',
+      { source, target });
+    renderGraph(d.graph);
+    toast('关系已删除');
+  } catch(e) { toast(e.message, true); }
+};
+
+// --- AI 学习助手（多轮对话） ---
+window.__chatHistory = [];
+function chatKey() { return 'kg_chat_' + (document.getElementById('course').value.trim() || '默认课程'); }
+function chatGreetingHtml() { return '<span class="msg ai">你好，我是这门课的 AI 助教 👋 可以问我知识点、概念关系，甚至出一题练习，大胆提问吧！</span>'; }
+function loadChat() {
+  try { window.__chatHistory = JSON.parse(localStorage.getItem(chatKey())) || []; }
+  catch (e) { window.__chatHistory = []; }
+  renderChat([]);
+}
+function saveChat() { try { localStorage.setItem(chatKey(), JSON.stringify(window.__chatHistory)); } catch (e) {} }
+function renderChat(suggested) {
+  const box = document.getElementById('chatBox');
+  if (!window.__chatHistory.length) { box.innerHTML = chatGreetingHtml(); box.scrollTop = box.scrollHeight; renderQuick(suggested || []); return; }
+  box.innerHTML = window.__chatHistory.map(m =>
+    '<span class="msg ' + (m.role === 'user' ? 'user' : 'ai') + '">' + escapeHtml(m.content) +
+    (m.meta ? '<span class="meta">' + escapeHtml(m.meta) + '</span>' : '') + '</span>').join('');
+  box.scrollTop = box.scrollHeight;
+  renderQuick(suggested || []);
+}
+function renderQuick(chips) {
+  const q = document.getElementById('chatQuick');
+  const list = (chips && chips.length ? chips : ['帮我总结本章重点', '我该先学什么？', '出一道练习题', '用大白话解释一个概念']);
+  q.innerHTML = list.map(c => '<span class="qchip">' + escapeHtml(c) + '</span>').join('');
+  q.querySelectorAll('.qchip').forEach(el => el.onclick = () => sendChat(el.textContent));
+}
+async function sendChat(text) {
+  const q = (text || document.getElementById('q').value).trim();
+  if (!q) return;
+  document.getElementById('q').value = '';
+  currentCourse = document.getElementById('course').value.trim() || '默认课程';
+  const history = window.__chatHistory.slice();
+  window.__chatHistory.push({ role: 'user', content: q });
+  renderChat();
+  const box = document.getElementById('chatBox');
+  const typing = document.createElement('span');
+  typing.className = 'msg ai typing'; typing.textContent = '思考中…';
+  box.appendChild(typing); box.scrollTop = box.scrollHeight;
+  document.getElementById('btnAsk').disabled = true;
+  try {
+    const d = await apiCall('/api/chat/' + encodeURIComponent(currentCourse), 'POST', { question: q, history, provider: (document.getElementById('aiSource') || {}).value || 'deepseek' });
+    const refs = (d.references && d.references.length) ? ' ｜ 引用：' + d.references.join('、') : '';
+    const who = d.provider ? (d.provider === 'doubao' ? '豆包' : 'DeepSeek') : '';
+    const meta = (d.mode === 'llm' ? 'AI 模型' + (who ? ' · ' + who : '') : (d.mode === 'mock' ? '演示模式' : '未检索到知识点')) + refs;
+    window.__chatHistory.push({ role: 'assistant', content: d.answer, meta });
+    saveChat();
+    renderChat(d.suggested);
+    const tag = document.getElementById('chatModeTag');
+    tag.textContent = d.mode === 'llm' ? (who ? who : 'AI 模型') : (d.mode === 'mock' ? '演示' : '未检索');
+    tag.style.display = 'inline-block';
+  } catch (e) {
+    window.__chatHistory.push({ role: 'assistant', content: '（出错了：' + e.message + '）' });
+    renderChat();
+  } finally {
+    document.getElementById('btnAsk').disabled = false;
+    document.getElementById('q').focus();
+  }
+}
+document.getElementById('btnAsk').onclick = () => sendChat();
+document.getElementById('q').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
+document.getElementById('btnClearChat').onclick = () => {
+  window.__chatHistory = [];
+  try { localStorage.removeItem(chatKey()); } catch (e) {}
+  document.getElementById('chatModeTag').style.display = 'none';
+  renderChat([]);
+};
+
+// --- 语音输入（Web Speech API） ---
+let recognition = null, micListening = false;
+const MicBtn = document.getElementById('btnMic');
+function micUi(live) {
+  micListening = live;
+  MicBtn.textContent = live ? '聆听中' : '语音';
+  MicBtn.classList.toggle('mic-live', live);
+}
+MicBtn.onclick = () => {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast('当前浏览器不支持语音输入，请使用 Chrome / Edge', true); return; }
+  if (micListening) { if (recognition) recognition.stop(); return; }
+  recognition = recognition || new SR();
+  recognition.lang = 'zh-CN';
+  recognition.interimResults = true;
+  recognition.continuous = false;
+  recognition.maxAlternatives = 1;
+  recognition.onstart = () => { micUi(true); toast('请开始说话…'); document.getElementById('q').value = ''; };
+  recognition.onresult = (e) => {
+    let t = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) t += e.results[i][0].transcript;
+    const inp = document.getElementById('q');
+    inp.value = t;
+    if (e.results[e.results.length - 1].isFinal) micUi(false);
+  };
+  recognition.onend = () => { micUi(false); document.getElementById('q').focus(); };
+  recognition.onerror = () => { micUi(false); toast('未能识别到语音，请重试', true); };
+  micListening = true;
+  try { recognition.start(); } catch (e) { micUi(false); toast('语音启动失败：' + e.message, true); }
+};
+
+// --- 会话导出 ---
+function downloadFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+document.getElementById('btnExportChat').onclick = () => {
+  const msgs = window.__chatHistory || [];
+  if (!msgs.length) { toast('当前没有可导出的对话', true); return; }
+  const fmt = document.getElementById('exportFmt').value;
+  const course = document.getElementById('course').value.trim() || '默认课程';
+  const stamp = new Date().toISOString();
+  const base = (course + '_会话_' + Date.now());
+  if (fmt === 'html') {
+    const esc = s => escapeHtml(String(s));
+    const cards = msgs.map(m => {
+      const who = m.role === 'user' ? '我' : 'AI 助手';
+      const cls = m.role === 'user' ? 'user' : 'ai';
+      const meta = m.meta ? '<div class="meta">' + esc(m.meta) + '</div>' : '';
+      return '<div class="msg ' + cls + '"><div class="who">' + who + '</div>' +
+        '<div class="body">' + esc(m.content).replace(/\n/g, '<br>') + '</div>' + meta + '</div>';
+    }).join('');
+    downloadFile(base + '.html',
+      '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<title>' + esc(course) + ' · AI 学习助手会话记录</title>' +
+      '<style>body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;max-width:860px;margin:24px auto;padding:0 16px;color:#1a2740;background:#f5f7fb}' +
+      'h1{font-size:22px;border-bottom:2px solid #5b8cff;padding-bottom:10px}' +
+      '.sub{color:#8a95b3;font-size:13px;margin-bottom:16px}' +
+      '.msg{border-radius:12px;padding:12px 14px;margin:10px 0;line-height:1.7;font-size:14px;box-shadow:0 1px 4px rgba(0,0,0,.06)}' +
+      '.msg .who{font-size:12px;font-weight:700;margin-bottom:4px}' +
+      '.msg.user{background:#5b8cff;color:#fff;margin-left:40px}.msg.user .who{color:#dce6ff}' +
+      '.msg.ai{background:#fff;border:1px solid #e1e7f5;margin-right:40px}.msg.ai .who{color:#5b8cff}' +
+      '.meta{font-size:11px;color:#8a95b3;margin-top:6px}' +
+      '@media print{body{box-shadow:none}}</style></head><body>' +
+      '<h1>' + esc(course) + ' · AI 学习助手会话记录</h1>' +
+      '<div class="sub">导出时间：' + esc(new Date().toLocaleString()) + ' ｜ 共 ' + msgs.length + ' 条消息</div>' +
+      cards +
+      '</body></html>',
+      'text/html');
+  } else if (fmt === 'json') {
+    downloadFile(base + '.json', JSON.stringify({
+      course_id: course, exported_at: stamp,
+      messages: msgs.map(m => ({ role: m.role, content: m.content, meta: m.meta || '' })),
+    }, null, 2), 'application/json');
+  } else if (fmt === 'markdown') {
+    const lines = ['# ' + course + ' · AI 学习助手会话记录', '', '> 导出时间：' + new Date().toLocaleString(), ''];
+    msgs.forEach(m => {
+      if (m.role === 'user') lines.push('### 我：');
+      else lines.push('### AI 助手：' + (m.meta ? '（' + m.meta + '）' : ''));
+      lines.push('', m.content, '');
+    });
+    downloadFile(base + '.md', lines.join('\n'), 'text/markdown');
+  } else {
+    const lines = ['【' + course + '】AI 学习助手会话导出', '时间：' + new Date().toLocaleString(), '='.repeat(40), ''];
+    msgs.forEach(m => {
+      if (m.role === 'user') { lines.push('[我]'); }
+      else { lines.push('[AI 助手]' + (m.meta ? ' (' + m.meta + ')' : '')); }
+      lines.push(m.content, '-'.repeat(30), '');
+    });
+    downloadFile(base + '.txt', lines.join('\n'), 'text/plain');
+  }
+  toast('会话已导出');
+};
+
+// --- 路径推荐 ---
+document.getElementById('btnRec').onclick = async () => {
+  currentCourse = document.getElementById('course').value.trim() || '默认课程';
+  const mastered = [...(window.__mastered || [])];
+  try {
+    const d = await apiCall('/api/recommend/' + encodeURIComponent(currentCourse), 'POST',
+      { mastered, top_k: 5 });
+    document.getElementById('recChips').innerHTML =
+      d.recommendations.length
+        ? '<div class="h">建议下一步学习（已按优先级排序）</div>' + d.recommendations.map((r, i) =>
+            '<div class="card" style="margin-top:6px"><b style="color:var(--acc)">' + (i + 1) + '. ' + escapeHtml(r.name) + '</b><span class="tag">' + escapeHtml(r.kind) + '</span><pre>' + escapeHtml(r.definition || '') + '</pre></div>').join('')
+        : '<span class="empty">暂无推荐</span>';
+  } catch(e) { toast('推荐失败：' + e.message, true); }
+};
+
+function escapeHtml(s) { return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function escapeAttr(s) { return (s || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
+// --- AI 工具辅助（教师备课 / 学生学习，同一批豆包·DeepSeek 工具，页面内直接使用） ---
+const _AIUI = {
+  teacher: { grid: 'aiToolGrid', task: 'aiTask', btn: 'btnAiGen', out: 'aiOut' },
+};
+let _AITOOLS = [];
+let _aiSel = { teacher: 'deepseek' };
+
+function _toolHtml(t) {
+  const engineText = t.real
+    ? '<em>已接入 · ' + escapeHtml(t.name) + ' 模型</em>'
+    : '<em>由接入的 AI 引擎驱动</em>';
+  return '<div class="tool-card" data-id="' + escapeAttr(t.id) + '" id="toolcard_' + escapeAttr(t.id) + '">' +
+    '<div class="tc-top"><span class="ic" style="background:' + escapeAttr(t.color) + '">' + escapeHtml(t.icon) + '</span>' +
+    '<b>' + escapeHtml(t.name) + '</b></div>' +
+    '<div class="eng">' + engineText + '</div>' +
+    '<div class="eng c">' + escapeHtml(t.desc) + '</div></div>';
+}
+function paintToolGrid() {
+  Object.entries(_AIUI).forEach(([side, ui]) => {
+    const grid = document.getElementById(ui.grid);
+    if (!grid) return;
+    grid.querySelectorAll('.tool-card').forEach(c => {
+      c.classList.toggle('sel', c.dataset.id === _aiSel[side]);
+    });
+  });
+}
+function renderToolGrid(side) {
+  const grid = document.getElementById(_AIUI[side].grid);
+  grid.innerHTML = _AITOOLS.map(_toolHtml).join('');
+  grid.querySelectorAll('.tool-card').forEach(card => {
+    card.onclick = () => { _aiSel[side] = card.dataset.id; paintToolGrid(); };
+  });
+  paintToolGrid();
+}
+async function loadAiTools(side) {
+  const grid = document.getElementById(_AIUI[side].grid);
+  grid.innerHTML = '<span class="empty">正在加载工具…</span>';
+  try {
+    const d = await apiCall('/api/assistant/tools');
+    _AITOOLS = d.tools;
+    const def = _AITOOLS.some(t => t.engine === 'deepseek')
+      ? _AITOOLS.find(t => t.engine === 'deepseek').id
+      : (_AITOOLS[0] && _AITOOLS[0].id);
+    _aiSel[side] = def;
+    renderToolGrid(side);
+  } catch (e) {
+    grid.innerHTML = '<span class="empty">AI 工具加载失败。</span>';
+  }
+}
+function bindAiGen(side) {
+  const ui = _AIUI[side];
+  const isStu = side === 'student';
+  document.getElementById(ui.btn).onclick = async () => {
+    const toolId = _aiSel[side];
+    const task = document.getElementById(ui.task).value.trim();
+    if (!toolId) { toast('请先点选一个 AI 工具', true); return; }
+    if (!task) { toast(isStu ? '请描述你的学习需求' : '请描述你的教学任务', true); return; }
+    const cid = document.getElementById('course').value.trim() || '默认课程';
+    const btn = document.getElementById(ui.btn);
+    btn.disabled = true;
+    document.getElementById(ui.out).innerHTML = '<span class="empty">正在调用 ' + escapeHtml((_AITOOLS.find(t => t.id === toolId) || {}).name || '') + ' 生成…</span>';
+    try {
+      const d = await apiCall('/api/assistant/generate', 'POST', { course_id: cid, tool_id: toolId, task });
+      const who = d.mode === 'llm' && d.provider ? (d.provider === 'doubao' ? '豆包' : 'DeepSeek') : '';
+      const tag = '<span class="tag">' + (d.mode === 'llm' ? 'AI 生成' + (who ? ' · ' + who + ' 引擎' : '') : '演示模板') + '</span>';
+      document.getElementById(ui.out).innerHTML =
+        '<div class="h">' + escapeHtml(d.tool.name) + ' ' + tag + '</div>' +
+        '<pre>' + escapeHtml(d.generated) + '</pre>';
+    } catch (e) {
+      document.getElementById(ui.out).innerHTML = '<span class="empty">生成失败。</span>';
+      toast('生成失败：' + e.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  };
+}
+bindAiGen('teacher');
+
+// --- 教师端：核心知识点分析 ---
+document.getElementById('btnAnalyze').onclick = () => {
+  if (!NODES.length) { toast('请先载入或构建课程图谱', true); return; }
+  const indeg = {}, outdeg = {};
+  NODES.forEach(n => { indeg[n.name] = 0; outdeg[n.name] = 0; });
+  LINKS.forEach(l => {
+    indeg[l.target] = (indeg[l.target] || 0) + 1;
+    outdeg[l.source] = (outdeg[l.source] || 0) + 1;
+  });
+  const stats = NODES.map(n => ({ name: n.name, in: indeg[n.name] || 0, out: outdeg[n.name] || 0, deg: (indeg[n.name] || 0) + (outdeg[n.name] || 0), category: n.category }));
+  stats.sort((a, b) => b.deg - a.deg);
+  const isolated = stats.filter(s => s.deg === 0);
+  const top = stats.slice(0, 8);
+  document.getElementById('analyzeOut').innerHTML =
+    '<div class="h">图谱结构分析<span class="tag">' + NODES.length + ' 节点 / ' + LINKS.length + ' 关系</span></div>' +
+    '<div style="margin-top:6px"><b style="color:var(--acc)">核心知识点（按连接度 TOP ' + top.length + '）</b></div>' +
+    '<ol style="margin:4px 0 8px;padding-left:18px">' + top.map(s =>
+      '<li><b>' + escapeHtml(s.name) + '</b> <span class="tag">' + escapeHtml(s.category) + '</span> 出入度 ' + s.in + '/' + s.out + '</li>').join('') + '</ol>' +
+    '<div style="color:var(--muted)">孤立节点：' + (isolated.length
+      ? isolated.map(s => escapeHtml(s.name)).join('、') + '（共 ' + isolated.length + ' 个，建议核查是否遗漏关系）'
+      : '无，图谱联通性良好') + '</div>';
+};
+
+// --- 教师端：知识点搜索 / 定位 ---
+document.getElementById('btnSearch').onclick = () => {
+  const kw = document.getElementById('searchNode').value.trim();
+  if (!kw || !NODES.length) { toast('请输入知识点名称', true); return; }
+  const hit = NODES.find(n => n.name === kw) ||
+    NODES.find(n => n.name.includes(kw)) ||
+    NODES.find(n => (n.definition || '').includes(kw));
+  if (!hit) { toast('未找到匹配的知识点：' + kw, true); return; }
+  CHART.dispatchAction({ type: 'downplay', seriesIndex: 0 });
+  CHART.dispatchAction({ type: 'highlight', seriesIndex: 0, name: hit.name });
+  CHART.dispatchAction({ type: 'showTip', seriesIndex: 0, name: hit.name });
+  showNodeDetail(hit);
+  document.getElementById('searchNode').value = '';
+  toast('已定位：' + hit.name);
+};
+
+// --- 教师端：导出图谱 JSON ---
+document.getElementById('btnExportJson').onclick = () => {
+  if (!NODES.length) { toast('当前没有可导出的图谱', true); return; }
+  const payload = {
+    course_id: currentCourse || document.getElementById('course').value.trim() || '默认课程',
+    exported_at: new Date().toISOString(),
+    nodes: NODES.map(n => ({ name: n.name, category: n.category, definition: n.definition })),
+    links: LINKS.map(l => ({ source: l.source, target: l.target, type: l.type || 'related' })),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = prompt('文件名：', (payload.course_id || 'graph') + '_knowledge_graph.json') || 'graph.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+// --- 教师端：分类统计 ---
+document.getElementById('btnStat').onclick = () => {
+  if (!NODES.length) { toast('请先载入或构建课程图谱', true); return; }
+  const byCat = {};
+  NODES.forEach(n => { byCat[n.category] = (byCat[n.category] || 0) + 1; });
+  const rows = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+  const max = Math.max(...rows.map(r => r[1]), 1);
+  document.getElementById('statOut').innerHTML =
+    '<div class="h">知识点分类统计<span class="tag">共 ' + NODES.length + ' 个知识点 / ' + LINKS.length + ' 条关系</span></div>' +
+    rows.map(([cat, cnt]) =>
+      '<div style="display:flex;align-items:center;gap:8px;margin-top:6px">' +
+      '<span style="width:56px;color:var(--muted)">' + escapeHtml(cat) + '</span>' +
+      '<div style="flex:1;height:10px;background:#223052;border-radius:5px;overflow:hidden">' +
+      '<div style="height:100%;width:' + Math.round(cnt / max * 100) + '%;background:var(--acc)"></div></div>' +
+      '<b style="width:24px;text-align:right;color:var(--acc)">' + cnt + '</b></div>').join('');
+};
+
+// --- 教师端：课程文件库（按内容自动分类） ---
+const FILE_CAT_ORDER = ['syllabus', 'slides', 'notes', 'assignments', 'exams', 'lab', 'reference', 'other'];
+function fileCatClass(cat) { return 'fx fx-' + (FILE_CAT_ORDER.includes(cat) ? cat : 'other'); }
+const CAT_LABEL = { syllabus:'教学大纲', slides:'课件', notes:'讲义', assignments:'习题/作业', exams:'试卷/测验', lab:'实验', reference:'参考/拓展', other:'其他' };
+function catShow(f) { return CAT_LABEL[f.category] || f.label || '其他'; }
+function fmtSize(b) {
+  if (b >= 1024 * 1024) return (b / 1024 / 1024).toFixed(1) + ' MB';
+  if (b >= 1024) return (b / 1024).toFixed(0) + ' KB';
+  return b + ' B';
+}
+// 文档管理：默认按当前课程分组卡片，可切换为"列出全部文件"总表（含默认课件库与各课程文件）
+let _fileScopeAll = false;
+async function loadFileLib() {
+  const box = document.getElementById('fileList');
+  const stat = document.getElementById('fileStat');
+  try {
+    const url = _fileScopeAll
+      ? '/api/teacher/files'
+      : '/api/teacher/files?course_id=' + encodeURIComponent(document.getElementById('course').value.trim() || '默认课程');
+    const d = await apiCall(url);
+    const files = d.files || [];
+    if (stat) {
+      const cset = new Set(files.map(f => f.course_id).filter(Boolean));
+      stat.textContent = (url.indexOf('course_id=') > -1 ? '当前课程' : '全部范围') +
+        '：共 ' + files.length + ' 个文件 · ' + cset.size + ' 门课程' + (_fileScopeAll ? '（含各课程文件与默认课件）' : '');
+    }
+    if (!files.length) { box.innerHTML = '<span class="empty">该范围暂无文件。上传后自动按内容分类。</span>'; return; }
+    if (_fileScopeAll) {
+      // 独立页面化的总表视图：清晰罗列文件 + 课程 + 分类 + 可解析状态 + 大小 + 时间
+      box.innerHTML =
+        '<table style="width:100%;border-collapse:collapse;font-size:12.5px">' +
+        '<thead><tr>' +
+        '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line,#444);color:var(--muted)">文件</th>' +
+        '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line,#444);color:var(--muted)">课程</th>' +
+        '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line,#444);color:var(--muted)">分类</th>' +
+        '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line,#444);color:var(--muted)">可解析</th>' +
+        '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line,#444);color:var(--muted)">大小</th>' +
+        '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line,#444);color:var(--muted)">上传时间</th>' +
+        '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line,#444);color:var(--muted)">操作</th>' +
+        '</tr></thead><tbody>' +
+        files.map(f =>
+          '<tr style="border-bottom:1px solid var(--line,#333)">' +
+          '<td style="padding:6px 8px" title="' + escapeAttr(f.filename) + '">' + escapeHtml(f.filename) + '</td>' +
+          '<td style="padding:6px 8px;color:var(--muted)">' + escapeHtml(f.course_id) + '</td>' +
+          '<td style="padding:6px 8px"><span class="' + fileCatClass(f.category) + '">' + escapeHtml(catShow(f)) + '</span></td>' +
+          '<td style="padding:6px 8px">' + (f.text_len > 0
+            ? '<span style="color:#4caf50">已解析</span> · ' + f.text_len + '字'
+            : '<span style="color:#ff8c8c">无文本可解析（仅存档）</span>') + '</td>' +
+          '<td style="padding:6px 8px">' + fmtSize(f.size) + '</td>' +
+          '<td style="padding:6px 8px;color:var(--muted)">' + escapeHtml((f.uploaded_at || '').replace('T', ' ').slice(0, 19)) + '</td>' +
+          '<td style="padding:6px 8px"><button onclick="buildFileGraph(' + f.id + ')">生成图谱</button> ' +
+              '<button class="ghost" onclick="deleteFileLib(' + f.id + ')">删除</button></td>' +
+          '</tr>').join('') + '</tbody></table>';
+      return;
+    }
+    const groups = {};
+    files.forEach(f => { (groups[f.category] = groups[f.category] || []).push(f); });
+    box.innerHTML = FILE_CAT_ORDER.filter(c => groups[c]).map(c =>
+      '<div style="margin-top:8px"><b style="color:var(--acc)">' + escapeHtml(catShow(groups[c][0])) +
+      '</b> <span class="tag" style="margin-left:4px">' + groups[c].length + '</span>' +
+      groups[c].map(f => '<div class="file-row">' +
+        '<span class="' + fileCatClass(f.category) + '">' + escapeHtml(catShow(f)) + '</span>' +
+        '<span class="fm" title="' + escapeAttr(f.filename) + '">' + escapeHtml(f.filename) +
+        ' <span style="color:var(--muted)">(' + fmtSize(f.size) + ')</span></span>' +
+        '<button onclick="buildFileGraph(' + f.id + ')">生成图谱</button>' +
+        '<button class="ghost" onclick="deleteFileLib(' + f.id + ')">删除</button>' +
+        '</div>').join('') + '</div>').join('');
+  } catch (e) {
+    if (stat) stat.textContent = '';
+    box.innerHTML = '<span class="empty">文件库加载失败：' + escapeHtml(e.message) + '</span>';
+  }
+}
+window.buildFileGraph = async function(id) {
+  if (!confirm('用该文件生成/覆盖当前课程的知识图谱？')) return;
+  try {
+    const d = await apiCall('/api/teacher/files/' + id + '/build', 'POST');
+    renderGraph(d.graph, d.extractor === 'mock' ? '模拟抽取' : 'DeepSeek 抽取');
+    document.getElementById('extractorBadge').textContent = d.extractor === 'mock' ? 'Mock' : 'DeepSeek';
+    document.getElementById('extractorBadge').style.display = 'inline-block';
+    toast('图谱已生成：' + d.entities + ' 知识点 / ' + d.relations + ' 关系（课程：' + d.course_id + '）');
+    refreshCourseList();
+  } catch (e) { toast('生成失败：' + e.message, true); }
+};
+window.deleteFileLib = async function(id) {
+  if (!confirm('确认删除该文件？')) return;
+  try { await apiCall('/api/teacher/files/' + id, 'DELETE'); toast('已删除'); loadFileLib(); }
+  catch (e) { toast('删除失败：' + e.message, true); }
+};
+window.uploadFiles = async function(fileList) {
+  const inp = document.getElementById('fileLib');
+  const selected = fileList || inp.files;
+  if (!selected || !selected.length) { toast('请先选择要上传的课程文件', true); return; }
+  const cid = document.getElementById('course').value.trim() || '默认课程';
+  const fd = new FormData();
+  for (const f of selected) fd.append('files', f);
+  const btn = document.getElementById('btnUploadFiles');
+  btn.disabled = true; btn.textContent = '上传并构图…';
+  try {
+    const d = await apiCall('/api/teacher/files?course_id=' + encodeURIComponent(cid) + '&build=true', 'POST', fd);
+    inp.value = '';
+    if (d.build) {
+      renderGraph(d.graph, d.extractor === 'mock' ? '模拟抽取' : 'DeepSeek 抽取');
+      document.getElementById('extractorBadge').textContent = d.extractor === 'mock' ? 'Mock' : 'DeepSeek';
+      document.getElementById('extractorBadge').style.display = 'inline-block';
+      refreshCourseList();
+      const unparsed = (d.added || []).filter(a => a.parsed === false).length;
+      toast('已上传并构建图谱：' + d.entities + ' 知识点 / ' + d.relations + ' 关系'
+        + (unparsed ? '；' + unparsed + ' 个无文本文件仅存档' : ''));
+    } else {
+      const unparsed = (d.added || []).filter(a => a.parsed === false).length;
+      toast('已上传并分类 ' + d.added.length + ' 个文件' + (unparsed ? '（含 ' + unparsed + ' 个仅存档）' : ''));
+    }
+    loadFileLib();
+  } catch (e) { toast('上传失败：' + e.message, true); }
+  finally { btn.disabled = false; btn.textContent = '上传并自动分类'; }
+};
+document.getElementById('btnUploadFiles').onclick = () => uploadFiles();
+// 拖拽上传：拖入文件后直接解析分类并上传
+const dropEl = document.getElementById('fileDrop');
+dropEl.addEventListener('click', () => document.getElementById('fileLib').click());
+['dragenter', 'dragover'].forEach(ev => dropEl.addEventListener(ev, e => { e.preventDefault(); dropEl.classList.add('dragging'); }));
+['dragleave', 'drop'].forEach(ev => dropEl.addEventListener(ev, e => { e.preventDefault(); dropEl.classList.remove('dragging'); }));
+dropEl.addEventListener('drop', e => uploadFiles(e.dataTransfer.files));
+document.getElementById('btnRefreshFiles').onclick = loadFileLib;
+document.getElementById('btnScopeFiles').onclick = function () {
+  _fileScopeAll = !_fileScopeAll;
+  this.textContent = _fileScopeAll ? '仅显示当前课程' : '列出全部文件';
+  loadFileLib();
+};
+document.getElementById('btnScopeFiles').textContent = _fileScopeAll ? '仅显示当前课程' : '列出全部文件';
+
+window.addEventListener('resize', () => CHART.resize());
+document.getElementById('btnLogout').onclick = doLogout;
+init();
+</script>
+</body>
+</html>

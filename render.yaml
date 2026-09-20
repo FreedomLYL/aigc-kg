@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: aigc-kg
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    autoDeploy: true
+    envVars:
+      - key: SEED_ON_START
+        value: "1"
+      - key: PYTHON_VERSION
+        value: "3.11.5"
+      # 下面的 Key 建议在 Render 后台以 Secret 方式填写，让云端返回真实的 AI 问答与图谱抽取。
+      # 不填也能正常运行（自动降级为演示模板）。复制本文件到云端时建议去掉注释或保密处理。
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: DOUBAO_API_KEY
+        sync: false
+      # 可选：配置云端 PostgreSQL 后自动切换为持久存储（默认用仓库自带的 SQLite 演示库，重启自动恢复预置数据）。
+      # - key: DATABASE_URL
+      #   sync: false

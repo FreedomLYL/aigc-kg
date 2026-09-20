@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>完整业务流程 · 总体架构（结合系统界面）</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:#eaf1ff;
+    background:radial-gradient(1100px 560px at 30% -10%,#0e2a4d 0%,#060e1f 60%),radial-gradient(900px 520px at 95% 110%,#0c2240 0%,transparent 60%);min-height:100vh;padding:52px 44px 40px}
+  .top{display:flex;align-items:baseline;gap:16px;max-width:1600px;margin:0 auto 22px}
+  .top h1{font-size:25px;margin:0;letter-spacing:1px}
+  .top h1 i{display:inline-block;width:11px;height:11px;border-radius:50%;background:#3ad99c;box-shadow:0 0 12px #3ad99c;margin-right:9px}
+  .top .dim{color:#7fd6ff;font-size:13px;border:1px solid #1a5f96;padding:4px 12px;border-radius:999px}
+  .lanes{display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:1600px;margin:0 auto}
+  .lane{border-radius:18px;padding:20px 20px 26px;box-shadow:0 14px 40px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.05)}
+  .lane.t{border:1px solid rgba(90,150,255,.28);background:linear-gradient(165deg,rgba(20,38,78,.85),rgba(7,16,38,.92))}
+  .lane.s{border:1px solid rgba(58,217,156,.25);background:linear-gradient(165deg,rgba(12,42,46,.88),rgba(6,16,30,.92))}
+  .lane-h{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+  .lane-h .ic{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;color:#fff}
+  .t .lane-h .ic{background:linear-gradient(135deg,#2e7bff,#5a4bff);box-shadow:0 0 16px rgba(46,123,255,.5)}
+  .s .lane-h .ic{background:linear-gradient(135deg,#17a96b,#3ad99c);box-shadow:0 0 16px rgba(58,217,156,.5)}
+  .lane-h b{font-size:19px}
+  .lane-h span{font-size:12px;color:#88a0c8}
+  .step{display:flex;gap:14px;align-items:stretch}
+  .box{flex:1;border-radius:12px;padding:13px 15px;font-size:13.5px;line-height:1.55;border:1px solid rgba(120,170,255,.2);background:rgba(18,36,74,.5);position:relative}
+  .t .box{border-color:rgba(90,150,255,.25)}
+  .s .box{border-color:rgba(58,217,156,.25)}
+  .box .n{position:absolute;top:-10px;left:14px;font-size:10px;font-weight:700;padding:2px 9px;border-radius:999px}
+  .t .box .n{background:#2e7bff}.s .box .n{background:#17a96b}
+  .box small{display:block;color:#7a94c2;margin-top:2px;font-size:11px}
+  .db{border:1.5px solid #e6c15c;background:linear-gradient(180deg,rgba(70,60,20,.45),rgba(30,26,12,.55));color:#ffe9a8;padding:10px;border-radius:9px}
+  .db::before{content:"";display:block;height:10px;border-radius:999px;background:#e6c15c;opacity:.9;margin-bottom:7px}
+  .arrow{height:26px;width:22px;margin-left:46px;border-left:2px solid rgba(150,190,255,.5);position:relative}
+  .t .arrow{border-color:rgba(90,150,255,.55)}.s .arrow{border-color:rgba(58,217,156,.55)}
+  .arrow:after{content:"";position:absolute;left:-5px;bottom:2px;width:8px;height:8px;border-bottom:2px solid currentColor;border-left:2px solid currentColor;transform:rotate(-45deg)}
+  .loop{border:1px dashed rgba(255,200,120,.4);color:#ffd9a0}
+  .rows{display:flex;flex-direction:column}
+  /* 系统界面小窗 */
+  .ui{margin-top:9px;border-radius:9px;background:#0b1633;border:1px solid #1d3a68;overflow:hidden;font-size:11px}
+  .ui .bar{display:flex;gap:5px;background:#101d3f;padding:6px 9px;border-bottom:1px solid #1d3a68;align-items:center;color:#6f87b8;font-size:10px}
+  .ui .bar i{width:8px;height:8px;border-radius:50%}
+  .ui .bar i:nth-child(1){background:#ff5f57}.ui .bar i:nth-child(2){background:#febc2e}.ui .bar i:nth-child(3){background:#28c840}
+  .ui .bar .ttl{margin-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ui .bd{padding:9px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{padding:4px 9px;border-radius:7px;background:#122449;border:1px solid #244080;color:#cfe3ff;font-size:10.5px}
+  .chip b{color:#7fd6ff;margin-left:4px}
+  .uzone{border:1.2px dashed #3f7dcf;border-radius:8px;text-align:center;padding:9px;color:#7aa9e0;font-size:10.5px}
+  .uzone b{color:#ffb25b}
+  .tri li{list-style:none;display:flex;gap:5px;align-items:center;padding:3px 0;border-bottom:1px dashed #1c3160;font-size:10.5px;color:#b9cdff}
+  .tri li:last-child{border:none}
+  .tri .e{display:inline-block;font-size:8.5px;padding:1px 6px;border-radius:5px;background:#123a6b;color:#7fd6ff}
+  .dlg{padding:7px 9px;border-radius:7px;font-size:10.5px}
+  .dlg.q{background:#0d1d3f;border:1px solid #1d3a68;color:#cfe0ff}
+  .dlg.a{margin-top:6px;background:#132a52;border:1px solid #2a4a7d;color:#eaf3ff}
+  .dlg em{color:#7fd6ff;font-style:normal}
+  .mark{display:flex;gap:5px}
+  .mark span{font-size:10.5px;padding:3px 9px;border-radius:6px;color:#cfe3ff;background:#122449;border:1px solid #244080}
+  .mark span.on{background:#17a96b;border-color:#2fe0a0;color:#fff}
+  .layers{max-width:1600px;margin:26px auto 0;border-top:1px solid #1d3a68;padding-top:18px}
+  .layers .ttl{font-size:13px;color:#7fd6ff;margin-bottom:12px;letter-spacing:1px}
+  .lay-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  .lay{border-radius:12px;padding:12px 13px;text-align:center;background:linear-gradient(160deg,rgba(23,42,84,.7),rgba(9,20,44,.8));border:1px solid rgba(120,180,255,.22)}
+  .lay b{display:block;font-size:14.5px;color:#ffd87a;margin-bottom:4px}
+  .lay span{font-size:11px;color:#8aa3c8;line-height:1.5;display:block}
+  @media(max-width:1080px){.lanes{grid-template-columns:1fr}.lay-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="top"><h1><i></i>完整业务流程 · 总体架构</h1><span class="dim">教师端 / 学生端 · 双泳道并行 · 结合系统界面</span></div>
+
+<div class="lanes">
+  <!-- ============ TEACHER ============ -->
+  <div class="lane t">
+    <div class="lane-h"><div class="ic">师</div><b>教师（Teacher）</b><span>图谱构建与校订</span></div>
+    <div class="rows">
+      <div class="step"><div class="box"><span class="n">STEP 1</span>教师上传课程资料<small>接入层 · 自动按内容分类</small>
+        <div class="ui"><div class="bar"><i></i><i></i><i></i><span class="ttl">AIGC 课程知识图谱 · 上传</span></div>
+        <div class="bd"><div class="uzone"><b>＋ 拖拽或点击上传</b><div>支持 md / docx / pdf / pptx</div></div>
+        <div class="chips" style="margin-top:6px"><span class="chip">机器学习-导论.md<b>讲课材料</b></span><span class="chip">第3章习题.docx<b>习题</b></span></div></div></div>
+      </div></div>
+      <div class="arrow"></div>
+      <div class="step"><div class="box"><span class="n">STEP 2</span>文档解析与文本预处理<small>业务服务层</small></div></div>
+      <div class="arrow"></div>
+      <div class="step"><div class="box"><span class="n">STEP 3</span>AIGC 大模型 API 抽取实体与语义关系<small>AIGC能力层 · DeepSeek</small>
+        <div class="ui"><div class="bar"><i></i><i></i><i></i><span class="ttl">llm · extractor=deepseek</span></div>
+        <div class="bd"><ul class="tri">
+          <li><span class="e">监督学习</span>has_part<span class="e">线性回归</span></li>
+          <li><span class="e">线性回归</span>uses<span class="e">梯度下降</span></li>
+          <li><span class="e">过拟合</span>reduces<span class="e">正则化</span></li>
+        </ul></div></div>
+      </div></div>
+      <div class="arrow"></div>
+      <div class="step"><div class="box"><span class="n">STEP 4</span>清洗三元组 → 写入图数据库<small>数据持久层</small>
+        <div class="db">Neo4j 图数据库</div></div></div>
+      <div class="arrow"></div>
+      <div class="step"><div class="box"><span class="n">STEP 5</span>前端渲染交互式知识图谱<small>力导向 · 分类着色 · 点选定义</small>
+        <div class="ui"><div class="bar"><i></i><i></i><i></i><span class="ttl">graph · 机器学习-线性回归</span></div>
+        <div class="bd" style="height:170px"><div id="miniT" style="width:100%;height:100%"></div></div></div>
+      </div></div>
+      <div class="arrow"></div>
+      <div class="step"><div class="box loop"><span class="n">LOOP</span>教师手动编辑图谱，修正错误并回写<small>反馈闭环 → 回到 STEP 4</small>
+        <div class="ui"><div class="bar"><i></i><i></i><i></i><span class="ttl">teacher · 图谱编辑</span></div>
+        <div class="bd"><div class="chips"><span class="chip">＋ 添加节点</span><span class="chip">关联边</span><span class="chip">保存回写</span></div></div></div>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ============ STUDENT ============ -->
+  <div class="lane s">
+    <div class="lane-h"><div class="ic">学</div><b>学生（Student）</b><span>掌握标记 · 路径 · 问答</span></div>
+    <div class="rows">
+      <div class="step"><div class="box"><span class="n">STEP 1</span>浏览图谱，标记已掌握知识点<small>交互操作 · 接入层</small>
+        <div class="ui"><div class="bar"><i></i><i></i><i></i><span class="ttl">graph · 知识图谱浏览</span></div>
+        <div class="bd"><div class="mark"><span>未掌握</span><span class="on">学习中</span><span>已掌握</span></div></div></div>
+      </div></div>
+      <div class="arrow"></div>
+      <div class="step"><div class="box"><span class="n">STEP 2</span>后端读取前置关系 · 图遍历计算<small>图算法 · 业务服务层</small></div></div>
+      <div class="arrow"></div>
+      <div class="step"><div class="box"><span class="n">STEP 3</span>生成个性化学习路径<small>个性化推荐 · 业务服务层</small>
+        <div class="ui"><div class="bar"><i></i><i></i><i></i><span class="ttl">student · 学习路径</span></div>
+        <div class="bd"><div class="chips"><span class="chip">线性回归</span><span class="chip">→ 逻辑回归</span><span class="chip">→ 神经网络</span></div></div></div>
+      </div></div>
+      <div class="arrow"></div>
+      <div class="step"><div class="box"><span class="n">STEP 4</span>学生输入问题<small>查询入口 · 接入层</small></div></div>
+      <div class="arrow"></div>
+      <div class="step"><div class="box"><span class="n">STEP 5</span>RAG 检索：文档切片 + 图谱三元组<small>检索增强 · 业务服务层</small></div></div>
+      <div class="arrow"></div>
+      <div class="step"><div class="box"><span class="n">STEP 6</span>组装 Prompt 送入大模型<small>AI 生成 · AIGC能力层</small></div></div>
+      <div class="arrow"></div>
+      <div class="step"><div class="box"><span class="n">STEP 7</span>返回课程相关回答<small>资源输出层</small>
+        <div class="ui"><div class="bar"><i></i><i></i><i></i><span class="ttl">assistant · AI 助手</span></div>
+        <div class="bd"><div class="dlg q">问：什么是过拟合？如何避免？</div>
+        <div class="dlg a">答：模型在训练集表现好但泛化弱，可用<em>L1/L2 正则化</em>与<em>交叉验证</em>抑制，见节点「过拟合」。</div></div></div>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<div class="layers"><div class="ttl">▍系统总体架构 · 五层</div>
+  <div class="lay-grid">
+    <div class="lay"><b>接入层</b><span>教师/学生 Web 界面：登录、浏览、上传、交互</span></div>
+    <div class="lay"><b>业务服务层</b><span>文档解析、图谱编辑、路径推荐、RAG 编排</span></div>
+    <div class="lay"><b>AIGC 能力层</b><span>大模型实体/关系抽取与智能问答生成</span></div>
+    <div class="lay"><b>数据持久层</b><span>Neo4j 图数据库 · 原始文档存储</span></div>
+    <div class="lay"><b>资源输入输出层</b><span>课程资料输入 · 图谱/回答输出</span></div>
+  </div>
+</div>
+
+<script>
+  const CMAP={概念:'#3ddc97',方法:'#5a4bff',算法:'#ff9f43',术语:'#2e9bff',应用:'#ffd36b'};
+  function graph(el,data){
+    ec=echarts.init(el);ec.setOption({backgroundColor:'transparent',tooltip:{show:false},
+      series:[{type:'graph',layout:'force',roam:false,force:{repulsion:110,gravity:.12,edgeLength:60},
+        label:{show:true,fontSize:8,color:'#dfeaff'},edgeSymbol:['none','arrow'],edgeSymbolSize:5,
+        lineStyle:{color:'#3f7dcf',width:1,curveness:.25,opacity:.7},itemStyle:{shadowBlur:10},
+        nodes:data.nodes.map(n=>({...n,symbolSize:n.big?26:16,itemStyle:{color:CMAP[n.category]||'#2e9bff'}})),
+        links:data.links.map(l=>({source:l[0],target:l[1]}))}]});
+  }
+  graph(document.getElementById('miniT'),{nodes:[
+    {name:'机器学习',category:'概念',big:1},{name:'线性回归',category:'算法'},
+    {name:'梯度下降',category:'算法'},{name:'过拟合',category:'概念'},
+    {name:'正则化',category:'方法'},{name:'交叉验证',category:'方法'}],
+    links:[['机器学习','线性回归'],['线性回归','梯度下降'],['线性回归','过拟合'],['过拟合','正则化'],['过拟合','交叉验证']]});
+</script>
+</body>
+</html>
