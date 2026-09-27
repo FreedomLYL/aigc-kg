@@ -52,6 +52,22 @@ def _seed_payload() -> Dict[str, Any]:
         return json.load(f)
 
 
+# ---------- 演示账号兜底 ----------
+
+DEMO_ACCOUNTS = [
+    ("teacher", "123456", "teacher"),
+    ("student", "123456", "student"),
+]
+
+
+def ensure_demo_users() -> None:
+    """保证 teacher/student 演示账号始终存在（无论库为空还是已有旧数据）。"""
+    for username, password, role in DEMO_ACCOUNTS:
+        if db.user_exists(username):
+            continue
+        db.create_user(username, password, role)
+
+
 def apply_seed_if_empty() -> bool:
     """若库为空且启用种子，则把演示数据导入（兼容 SQLite 与 PostgreSQL）。返回是否执行了导入。"""
     if not (config.SEED_ON_START and config.SEED_FILE.exists()):

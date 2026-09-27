@@ -1,58 +1,16 @@
 {
   "users": [
     {
-      "username": "test_teacher",
-      "password_hash": "1e7b0835a1b676a2ddac939f3750dbb6$8de6f393c54bdc6e730d157dc099a263c0be2d78e8ff973ca7fd789cee890ee3",
+      "username": "teacher",
+      "password_hash": "4a405155a5594733a240819d15511210$781c3a9f6f442889f49eec7f8f716aa80dbc5d2410cda797a6d4089fe1c27bf4",
       "role": "teacher",
-      "created_at": "2026-09-16 08:33:43"
+      "created_at": "2026-09-20 10:34:10"
     },
     {
-      "username": "test_student",
-      "password_hash": "caa3af98ce01102e4b46c7fbc60340df$ad181200f39acb776b61413aa934a44476fa3dbc2b2fe6ee5540bd92d0916d17",
+      "username": "student",
+      "password_hash": "667a1287a851a8c82780cfd3327563ba$b38a7a3e1fadb9d51f2eaaf2e40c3ac1b57b4de88e50fba41da6f717c8b3c832",
       "role": "student",
-      "created_at": "2026-09-16 08:33:43"
-    },
-    {
-      "username": "eval_user",
-      "password_hash": "4f2b4e4b16a53ab525c5778e43cdc41a$5701bfa85ca5acd2283a96c3c829f4757f0a146c2e0489a73ac0d13e07d184f8",
-      "role": "teacher",
-      "created_at": "2026-09-16 08:33:58"
-    },
-    {
-      "username": "2522570019",
-      "password_hash": "d02aab25615d97eb08ab6b77fdd866b5$2d79448ea56b803beed317bcbda54a1ade5555b72663ddfde595995a9fff7708",
-      "role": "teacher",
-      "created_at": "2026-09-16 08:43:20"
-    },
-    {
-      "username": "mic_user_1630",
-      "password_hash": "59a7c9c7cf41d0a8ac31ed601358b510$cd588733f7e6e021801ad902f349c248aa872125867b9b4840d63b8f53bc844b",
-      "role": "student",
-      "created_at": "2026-09-16 11:24:27"
-    },
-    {
-      "username": "乐",
-      "password_hash": "d3cad2c83ffbb16ef9f649098b4d01ba$14f4896c45677d533bc3bc44e1cd32ad86ad65c1e5b0e72f4d133c9f48c5b800",
-      "role": "student",
-      "created_at": "2026-09-16 22:48:34"
-    },
-    {
-      "username": "freedom",
-      "password_hash": "a4da994440df3db427096b07dc816675$a34e4785d62ed713effc368ec8daad812d5eeed8cd8007a816c9c461e8670c6a",
-      "role": "student",
-      "created_at": "2026-09-17 23:10:06"
-    },
-    {
-      "username": "ui_teacher",
-      "password_hash": "521039c606518962ad9b741219bbb654$93ed4919a3e0b5a01a1184fe4e440295356925a23397e75c6dcd84336f92a847",
-      "role": "teacher",
-      "created_at": "2026-09-18 00:10:05"
-    },
-    {
-      "username": "ui_student",
-      "password_hash": "51afca707dd44c86c94b088a02810bbf$2763787bdaa802a8cf79b01ae992b439cc5c4a419a78334bb56282cc76112d6f",
-      "role": "student",
-      "created_at": "2026-09-18 00:10:05"
+      "created_at": "2026-09-20 10:34:10"
     }
   ],
   "graphs": [

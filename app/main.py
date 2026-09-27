@@ -26,6 +26,8 @@ teacher_assistant = assistant.build_assistant()
 
 # 免费托管无持久磁盘：空库时从种子恢复演示数据（SEED_ON_START=1 且库为空才生效）
 seed.apply_seed_if_empty()
+# 兜底：无论库处于何种状态，都确保 teacher/student 演示账号可用（一键快速登录依赖它们）
+seed.ensure_demo_users()
 
 
 # ---------- 认证依赖 ----------
