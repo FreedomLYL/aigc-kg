@@ -91,6 +91,9 @@
   .quiz-card .lq{font-size:14px;font-weight:600;margin-bottom:4px;color:var(--text)}
   .quiz-head{display:flex;align-items:center;gap:6px;margin-bottom:6px}
   .quiz-head select{flex:1}
+  .quiz-head input[type=number]{flex:0 0 86px;padding:6px 8px;border-radius:8px;border:1px solid rgba(94,234,192,.25);background:rgba(94,234,192,.05);color:var(--text)}
+  .quiz-chips{display:flex;gap:4px;flex:0 0 auto}
+  .quiz-chips button{padding:5px 9px;font-size:11px}
   .quiz-prog{font-size:11px;color:var(--muted);margin-bottom:4px}
   .opt{display:block;width:100%;margin:5px 0;padding:8px 10px;font-size:12px;border:1px solid rgba(94,234,192,.25);border-radius:8px;background:transparent;cursor:pointer;color:var(--text);text-align:center}
   .opt:hover{border-color:var(--acc)}
@@ -329,11 +332,13 @@
         </div>
         <p style="font-size:12px;color:var(--muted);margin-bottom:6px">按老师布置的作业要求出题（未布置时自动按课程知识点出题），逐题作答即时判分并查看解析。</p>
         <div class="quiz-head">
-          <select id="quizCount">
-            <option value="5">5 题</option>
-            <option value="8">8 题</option>
-            <option value="10">10 题</option>
-          </select>
+          <input type="number" id="quizCount" min="1" max="50" value="5" title="任意题数（1~50）">
+          <span class="quiz-chips">
+            <button type="button" class="ghost" onclick="setQuizCount(5)">5</button>
+            <button type="button" class="ghost" onclick="setQuizCount(10)">10</button>
+            <button type="button" class="ghost" onclick="setQuizCount(15)">15</button>
+            <button type="button" class="ghost" onclick="setQuizCount(20)">20</button>
+          </span>
           <button id="btnQuizStart">开始作答</button>
         </div>
         <div id="quizBox"></div>
@@ -391,11 +396,13 @@
         </div>
         <textarea id="hwRequirement" rows="3" placeholder="布置要求（可选）：如「围绕梯度下降出 3 道侧重公式推导的题」「重点考查过拟合与正则化」" style="width:100%;box-sizing:border-box;margin:6px 0;padding:8px;border-radius:8px;border:1px solid rgba(94,234,192,.25);background:rgba(94,234,192,.05);color:var(--text)"></textarea>
         <div class="quiz-head">
-          <select id="hwCount">
-            <option value="5">5 题</option>
-            <option value="8">8 题</option>
-            <option value="10">10 题</option>
-          </select>
+          <input type="number" id="hwCount" min="1" max="50" value="5" title="任意题数（1~50）">
+          <span class="quiz-chips">
+            <button type="button" class="ghost" onclick="setHwCount(5)">5</button>
+            <button type="button" class="ghost" onclick="setHwCount(10)">10</button>
+            <button type="button" class="ghost" onclick="setHwCount(15)">15</button>
+            <button type="button" class="ghost" onclick="setHwCount(20)">20</button>
+          </span>
           <button id="btnHwAssign">布置作业</button>
           <button id="btnHwClear" class="ghost">撤销布置</button>
         </div>
@@ -1603,6 +1610,9 @@ window.copyBlock = function(id) {
 
 // ================= 课后习题（学生作答 / 教师布置） =================
 let __quiz = [], __quizIdx = 0, __quizScore = 0, __quizAnswered = false;
+function clampN(v) { v = parseInt(v, 10); if (isNaN(v) || v < 1) return 5; return Math.min(v, 50); }
+function setHwCount(n) { const el = document.getElementById('hwCount'); if (el) el.value = n; }
+function setQuizCount(n) { const el = document.getElementById('quizCount'); if (el) el.value = n; }
 
 // ---- 学生端：展示教师布置要求 ----
 function showHomeworkReq(r) {
@@ -1625,7 +1635,7 @@ function loadQuiz() {
   if (!courseId) { toast('请先在顶部选择课程', true); return; }
   const box = document.getElementById('quizBox');
   box.innerHTML = '<span class="empty">正在为你出题…</span>';
-  const n = parseInt(document.getElementById('quizCount').value || '5', 10);
+  const n = clampN(document.getElementById('quizCount').value);
   apiCall('/api/homework?course_id=' + encodeURIComponent(courseId) + '&n=' + n).then(r => {
     const qs = (r && r.questions) || [];
     if (!qs.length) { box.innerHTML = '<span class="empty">暂未生成题目，请先确保该课程有知识点。</span>'; return; }
@@ -1694,7 +1704,7 @@ function hwTarget() {
 function hwPayload() {
   return {
     course_id: hwTarget(),
-    n: parseInt(document.getElementById('hwCount').value || '5', 10),
+    n: clampN(document.getElementById('hwCount').value),
     requirement: document.getElementById('hwRequirement').value.trim()
   };
 }

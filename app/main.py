@@ -398,7 +398,7 @@ def homework_assign(body: dict, user: dict = Depends(require_user)):
     if not graph:
         raise HTTPException(404, f"未找到课程：{course_id}")
     from . import db as db_
-    n = max(1, min(int(body.get("n") or 5), 10))
+    n = max(1, min(int(body.get("n") or 5), 50))
     return db_.upsert_homework(course_id, str(body.get("requirement") or "").strip(), n, user["username"])
 
 

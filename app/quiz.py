@@ -140,7 +140,7 @@ def _mock_quiz(graph: dict, n: int):
 
 
 def generate_quiz(graph: dict, n: int = 5, requirement: str = ""):
-    n = max(1, min(int(n or 5), 10))
+    n = max(1, min(int(n or 5), 50))
     mode = "mock"
     qs = None
     try:
@@ -151,4 +151,6 @@ def generate_quiz(graph: dict, n: int = 5, requirement: str = ""):
         qs = None
     if not qs:
         qs = _mock_quiz(graph, n)
+    if qs and len(qs) > n:
+        qs = qs[:n]
     return {"questions": qs, "mode": mode}
