@@ -69,12 +69,16 @@ def _parse_json_list(text: str):
     return out or None
 
 
-def _llm_quiz(graph: dict, n: int):
+def _llm_quiz(graph: dict, n: int, requirement: str = ""):
     brief = _node_brief(graph)
+    req_part = ""
+    if requirement and requirement.strip():
+        req_part = f"\n\n教师的布置要求（必须严格执行）：{requirement.strip()}"
     user = (
         f"课程知识点：\n{brief or '（课程暂无知识点）'}\n\n"
         f"请基于以上知识点生成 {n} 道单选题，考察对核心概念的掌握。"
         "答案与解析都要来自课程知识点，不要编造知识点以外的概念。"
+        f"{req_part}"
     )
     try:
         text, _provider = llm_chat.chat(
@@ -135,13 +139,13 @@ def _mock_quiz(graph: dict, n: int):
     return items
 
 
-def generate_quiz(graph: dict, n: int = 5):
+def generate_quiz(graph: dict, n: int = 5, requirement: str = ""):
     n = max(1, min(int(n or 5), 10))
     mode = "mock"
     qs = None
     try:
         if llm_chat.supported().get("deepseek") or llm_chat.supported().get("doubao"):
-            qs = _llm_quiz(graph, n)
+            qs = _llm_quiz(graph, n, requirement)
             mode = "llm" if qs else "mock"
     except Exception:
         qs = None

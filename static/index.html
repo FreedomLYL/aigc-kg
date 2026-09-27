@@ -86,20 +86,9 @@
   .master-tools .count{flex:0 0 auto;font-size:12px;color:var(--muted)}
   .copy-x{background:transparent;border:1px solid rgba(94,234,192,.3);color:var(--acc);font-size:11px;padding:2px 8px;border-radius:6px;margin-top:6px;cursor:pointer}
   .copy-x:hover{background:rgba(47,212,160,.12);border-color:var(--acc)}
-  /* 自动刷课 */
-  .learn-bar{display:flex;align-items:center;gap:6px;margin-bottom:6px}
-  .learn-bar button{flex:0 0 auto;padding:6px 10px;font-size:12px}
-  .learn-progress{flex:1;height:6px;background:rgba(94,234,192,.15);border-radius:6px;overflow:hidden}
-  .learn-progress i{display:block;height:100%;background:var(--acc);width:0;transition:width .25s}
-  .learn-card{background:rgba(94,234,192,.06);border:1px solid rgba(94,234,192,.2);border-radius:12px;padding:10px;margin-bottom:6px}
-  .learn-card .lq{font-size:14px;font-weight:600;margin-bottom:4px;color:var(--text)}
-  .learn-card .lcat{font-size:11px;color:var(--acc)}
-  .learn-card .ldef{font-size:12px;line-height:1.6;color:var(--text2);margin-top:4px;white-space:pre-wrap}
-  .learn-card .rel{margin-top:8px}
-  .learn-card .rel span{font-size:11px;color:var(--muted)}
-  .learn-pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
-  .learn-pills em{font-style:normal;font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(240,194,75,.12);color:var(--sec)}
-  /* 自动刷题 */
+  /* 课后习题 */
+  .quiz-card{background:rgba(94,234,192,.06);border:1px solid rgba(94,234,192,.2);border-radius:12px;padding:10px;margin-bottom:6px}
+  .quiz-card .lq{font-size:14px;font-weight:600;margin-bottom:4px;color:var(--text)}
   .quiz-head{display:flex;align-items:center;gap:6px;margin-bottom:6px}
   .quiz-head select{flex:1}
   .quiz-prog{font-size:11px;color:var(--muted);margin-bottom:4px}
@@ -331,28 +320,21 @@
         <button id="btnClearChat" class="ghost" style="width:100%;margin-top:6px">清空对话</button>
       </section>
 
-      <section id="secLearn">
-        <h2>自动刷课</h2>
-        <p style="font-size:12px;color:var(--muted);margin-bottom:6px">按学习顺序自动“过一遍”本课程知识点，可播放 / 暂停、前后切换。</p>
-        <div class="learn-bar">
-          <button id="btnLearnPrev" class="ghost">◀ 上一步</button>
-          <button id="btnLearnPlay" class="ghost">▶ 开始</button>
-          <button id="btnLearnNext" class="ghost">下一步 ▶</button>
-        </div>
-        <div class="learn-progress"><i id="learnProg"></i></div>
-        <div class="learn-card" id="learnCard"><span class="empty">载入课程并点击「开始」即可自动学习。</span></div>
-      </section>
-
       <section id="secQuiz">
-        <h2>自动刷题</h2>
-        <p style="font-size:12px;color:var(--muted);margin-bottom:6px">基于当前课程自动出题，逐题作答即时判分并查看解析。</p>
+        <h2>课后习题</h2>
+        <div id="hwReqBox" class="card" style="display:none;margin-bottom:6px">
+          <div class="h">📋 老师布置的作业要求</div>
+          <div id="hwReqText" style="font-size:12px;line-height:1.6;color:var(--text2)"></div>
+          <div id="hwMeta" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:6px">按老师布置的作业要求出题（未布置时自动按课程知识点出题），逐题作答即时判分并查看解析。</p>
         <div class="quiz-head">
           <select id="quizCount">
             <option value="5">5 题</option>
             <option value="8">8 题</option>
             <option value="10">10 题</option>
           </select>
-          <button id="btnQuizStart">开始刷题</button>
+          <button id="btnQuizStart">开始作答</button>
         </div>
         <div id="quizBox"></div>
       </section>
@@ -398,6 +380,26 @@
           <button id="btnStat" class="ghost" style="flex:1">分类统计</button>
         </div>
         <div id="statOut" class="card" style="margin-top:6px"><span class="empty">运行后显示知识点分类统计与图谱规模。</span></div>
+      </section>
+
+      <section id="secHwAssign">
+        <h2>布置课后习题</h2>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:6px">针对当前课程布置课后习题，可提出具体出题要求；布置后学生端「课后习题」会按你的要求出题。</p>
+        <div class="row">
+          <select id="hwCourse" style="flex:1"></select>
+          <button id="btnHwPreview" class="ghost" style="flex:0 0 auto">生成预览</button>
+        </div>
+        <textarea id="hwRequirement" rows="3" placeholder="布置要求（可选）：如「围绕梯度下降出 3 道侧重公式推导的题」「重点考查过拟合与正则化」" style="width:100%;box-sizing:border-box;margin:6px 0;padding:8px;border-radius:8px;border:1px solid rgba(94,234,192,.25);background:rgba(94,234,192,.05);color:var(--text)"></textarea>
+        <div class="quiz-head">
+          <select id="hwCount">
+            <option value="5">5 题</option>
+            <option value="8">8 题</option>
+            <option value="10">10 题</option>
+          </select>
+          <button id="btnHwAssign">布置作业</button>
+          <button id="btnHwClear" class="ghost">撤销布置</button>
+        </div>
+        <div id="hwAssignInfo" class="card" style="margin-top:6px"><span class="empty">选择课程，填写布置要求（可选），即可布置课后习题；学生端可立即查看并作答。</span></div>
       </section>
 
       <section id="secFileLib">
@@ -569,11 +571,14 @@ function renderGraph(g, info) {
   renderMasterList();
   populateNodeSelectors();
   renderTour();
-  __stopLearn();
-  __learnSeq = [];
-  __learnIdx = -1;
-  const playBtn = document.getElementById('btnLearnPlay');
-  if (playBtn) playBtn.textContent = '▶ 开始';
+  // 切课后：重置课后习题区，并预载教师布置要求（学生端）
+  const qb = document.getElementById('quizBox');
+  if (qb) qb.innerHTML = '<span class="empty">选择课程后点击「开始作答」即可练习本章课后习题。</span>';
+  if (typeof showHomeworkReq === 'function') showHomeworkReq(null);
+  if (CURRENT_ROLE && CURRENT_ROLE.role === 'student' && currentCourse) {
+    apiCall('/api/homework?course_id=' + encodeURIComponent(currentCourse) + '&n=0')
+      .then(showHomeworkReq).catch(() => {});
+  }
   CHART.on('click', p => {
     if (p.dataType === 'node') showNodeDetail(p.data);
     else if (p.dataType === 'edge' && editMode) toast('点击端点节点可在详情中删除关系');
@@ -734,7 +739,7 @@ function applyRole(role) {
   document.getElementById('teacherPanel').style.display = T ? '' : 'none';
   document.getElementById('studentPanel').style.display = T ? 'none' : '';
   if (!T && editMode) exitEdit();
-  if (T) { loadAiTools('teacher'); loadFileLib(); }
+  if (T) { loadAiTools('teacher'); loadFileLib(); refreshHwCourses(); loadHwStatus(); }
   loadAiSources();
 }
 function loadAiSources() {
@@ -862,9 +867,9 @@ const NAV_ITEMS = [
   { id: 'nav_home',   label: '首页',    icon: '⌂', sec: 'secTour' },
   { id: 'nav_graph',  label: '知识图谱', icon: '◍', sec: 'secChart' },
   { id: 'nav_doc',    label: '文档管理', icon: '▤', sec: 'secFileLib', roles: ['teacher'] },
+  { id: 'nav_hw',     label: '布置习题', icon: '✎', sec: 'secHwAssign', roles: ['teacher'] },
   { id: 'nav_path',   label: '学习路径', icon: '➤', sec: 'secRec', roles: ['student'] },
-  { id: 'nav_learn',  label: '自动刷课', icon: '❖', sec: 'secLearn', roles: ['student'] },
-  { id: 'nav_quiz',   label: '自动刷题', icon: '✎', sec: 'secQuiz',  roles: ['student'] },
+  { id: 'nav_quiz',   label: '课后习题', icon: '✎', sec: 'secQuiz',  roles: ['student'] },
   { id: 'nav_ai',     label: 'AI助手',  icon: '◉', sec: 'secAI', kind: 'ai' },
 ];
 function buildNav(role) {
@@ -1596,106 +1601,35 @@ window.copyBlock = function(id) {
   copyText(t, '已复制结果');
 };
 
-// ================= 自动刷课（AI 导学滚动） =================
-const LEARN_SPEED = 5000;
-let __learnSeq = [], __learnIdx = -1, __learnTimer = null;
-function buildLearnSequence() {
-  if (!NODES.length) return [];
-  const deg = {};
-  NODES.forEach(n => { deg[n.name] = 0; });
-  LINKS.forEach(l => {
-    if (deg[l.source] !== undefined) deg[l.source]++;
-    if (deg[l.target] !== undefined) deg[l.target]++;
-  });
-  const byCat = {};
-  NODES.forEach(n => { (byCat[n.category] = byCat[n.category] || []).push(n); });
-  const seq = [];
-  ['概念', '术语', '定理', '方法', '算法', '公式', '应用'].forEach(c => (byCat[c] || []).forEach(n => seq.push(n)));
-  NODES.forEach(n => { if (!seq.includes(n)) seq.push(n); });
-  return seq.slice().sort((a, b) => ((deg[b.name] || 0) - (deg[a.name] || 0)));
-}
-function highlightNodeByName(name) {
-  try {
-    const opts = CHART.getOption();
-    const data = (opts && opts.series && opts.series[0] && opts.series[0].data) || [];
-    CHART.dispatchAction({ type: 'downplay', seriesIndex: 0 });
-    const i = data.findIndex(d => d && d.name === name);
-    if (i >= 0) CHART.dispatchAction({ type: 'highlight', seriesIndex: 0, dataIndex: i });
-  } catch (e) {}
-}
-function __stopLearn() {
-  if (__learnTimer) { clearInterval(__learnTimer); __learnTimer = null; }
-}
-function showLearnStep() {
-  const card = document.getElementById('learnCard');
-  const prog = document.getElementById('learnProg');
-  if (!__learnSeq.length) {
-    card.innerHTML = '<span class="empty">请先载入课程知识图谱，再开始刷课。</span>';
-    return;
-  }
-  if (__learnIdx < 0) __learnIdx = 0;
-  if (__learnIdx >= __learnSeq.length) __learnIdx = __learnSeq.length - 1;
-  const n = __learnSeq[__learnIdx];
-  highlightNodeByName(n.name);
-  const rels = LINKS.filter(l => l.source === n.name || l.target === n.name)
-    .map(l => (l.source === n.name ? l.target : l.source))
-    .filter((v, i, arr) => arr.indexOf(v) === i);
-  const relHtml = rels.length
-    ? '<div class="rel"><span>相关知识点：</span><div class="learn-pills">' +
-      rels.slice(0, 10).map(r => '<em>' + escapeHtml(r) + '</em>').join('') + '</div></div>'
-    : '';
-  card.innerHTML =
-    '<div class="lq">' + (__learnIdx + 1) + ' / ' + __learnSeq.length + ' · ' + escapeHtml(n.name) + '</div>' +
-    '<span class="lcat">分类：' + escapeHtml(n.category || '知识点') + '</span>' +
-    '<div class="ldef">' + escapeHtml(n.definition || '（暂无详细定义）') + '</div>' + relHtml;
-  prog.style.width = (((__learnIdx + 1) / __learnSeq.length) * 100) + '%';
-  document.getElementById('btnLearnPlay').textContent = __learnTimer ? '⏸ 暂停' : '▶ 播放';
-}
-function learnGo(delta) {
-  if (!__learnSeq.length) buildLearnSequence();
-  if (!__learnSeq.length) { showLearnStep(); return; }
-  let ni = __learnIdx + delta;
-  if (ni < 0) ni = 0;
-  if (ni >= __learnSeq.length) {
-    __learnIdx = __learnSeq.length - 1;
-    __stopLearn(); showLearnStep(); toast('已学完全部知识点');
-    return;
-  }
-  __learnIdx = ni; showLearnStep();
-}
-function toggleLearnPlay() {
-  if (!NODES.length) { toast('请先载入课程图谱', true); return; }
-  buildLearnSequence();
-  if (__learnTimer) {
-    __stopLearn();
-    document.getElementById('btnLearnPlay').textContent = '▶ 播放';
-    toast('已暂停');
-    return;
-  }
-  if (__learnIdx < 0) __learnIdx = 0;
-  __learnTimer = setInterval(() => {
-    if (__learnIdx + 1 >= __learnSeq.length) {
-      __stopLearn();
-      document.getElementById('btnLearnPlay').textContent = '▶ 播放';
-      showLearnStep(); toast('已学完全部知识点');
-      return;
-    }
-    __learnIdx++; showLearnStep();
-  }, LEARN_SPEED);
-  document.getElementById('btnLearnPlay').textContent = '⏸ 暂停';
-  showLearnStep(); toast('开始自动刷课，可随时暂停');
-}
-// ================= 自动刷题（选择题自动判分） =================
+// ================= 课后习题（学生作答 / 教师布置） =================
 let __quiz = [], __quizIdx = 0, __quizScore = 0, __quizAnswered = false;
+
+// ---- 学生端：展示教师布置要求 ----
+function showHomeworkReq(r) {
+  const box = document.getElementById('hwReqBox');
+  if (!box) return;
+  if (r && r.assigned && r.requirement) {
+    box.style.display = '';
+    document.getElementById('hwReqText').textContent = r.requirement;
+    const meta = document.getElementById('hwMeta');
+    if (r.teacher_name) meta.textContent = '布置人：' + r.teacher_name;
+    else meta.textContent = '';
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+// ---- 学生端：开始作答（自动携带教师布置要求） ----
 function loadQuiz() {
   const courseId = document.getElementById('course').value.trim();
-  if (!courseId) { toast('请先选择课程', true); return; }
+  if (!courseId) { toast('请先在顶部选择课程', true); return; }
   const box = document.getElementById('quizBox');
   box.innerHTML = '<span class="empty">正在为你出题…</span>';
   const n = parseInt(document.getElementById('quizCount').value || '5', 10);
-  apiCall('/api/quiz/generate?course_id=' + encodeURIComponent(courseId) + '&n=' + n).then(r => {
+  apiCall('/api/homework?course_id=' + encodeURIComponent(courseId) + '&n=' + n).then(r => {
     const qs = (r && r.questions) || [];
     if (!qs.length) { box.innerHTML = '<span class="empty">暂未生成题目，请先确保该课程有知识点。</span>'; return; }
+    showHomeworkReq(r);
     __quiz = qs; __quizIdx = 0; __quizScore = 0; __quizAnswered = false;
     renderQuiz();
   }).catch(e => {
@@ -1705,17 +1639,19 @@ function loadQuiz() {
 function renderQuiz() {
   const box = document.getElementById('quizBox');
   if (__quizIdx >= __quiz.length) {
+    const pct = __quiz.length ? Math.round((__quizScore / __quiz.length) * 100) : 0;
     box.innerHTML =
-      '<div class="learn-card"><div class="lq">本次得分：' + __quizScore + ' / ' + __quiz.length +
-      '（正确率 ' + Math.round((__quizScore / __quiz.length) * 100) + '%）</div></div>' +
-      '<button class="ghost" style="width:100%;margin-top:6px" onclick="loadQuiz()">再来一组</button>';
+      '<div class="quiz-card"><div class="lq">🎉 本次作答完成</div>' +
+      '<div style="font-size:13px;color:var(--text2);margin-top:4px">得分：' + __quizScore + ' / ' + __quiz.length +
+      '（正确率 ' + pct + '%）</div></div>' +
+      '<button class="ghost" style="width:100%;margin-top:6px" onclick="loadQuiz()">再练一次</button>';
     return;
   }
   const it = __quiz[__quizIdx];
   __quizAnswered = false;
   box.innerHTML =
     '<div class="quiz-prog">第 ' + (__quizIdx + 1) + ' / ' + __quiz.length + ' 题</div>' +
-    '<div class="learn-card"><div class="lq">' + escapeHtml(it.q) + '</div>' +
+    '<div class="quiz-card"><div class="lq">' + escapeHtml(it.q) + '</div>' +
     it.options.map((o, i) =>
       '<button class="opt" data-i="' + i + '" onclick="answerQuiz(this,' + i + ')">' + (i + 1) + '. ' + escapeHtml(o) + '</button>'
     ).join('') +
@@ -1738,10 +1674,90 @@ function answerQuiz(btn, picked) {
     (__quizIdx + 1 < __quiz.length ? '下一题' : '查看成绩') + '</button>';
 }
 function nextQuiz() { __quizIdx++; renderQuiz(); }
-document.getElementById('btnLearnNext').onclick = () => { __stopLearn(); learnGo(1); };
-document.getElementById('btnLearnPrev').onclick = () => { __stopLearn(); learnGo(-1); };
-document.getElementById('btnLearnPlay').onclick = toggleLearnPlay;
+
+// ---- 教师端：布置课后习题 ----
+function refreshHwCourses() {
+  const sel = document.getElementById('hwCourse');
+  if (!sel) return;
+  apiCall('/api/courses').then(d => {
+    const cur = document.getElementById('course').value.trim();
+    let h = '';
+    (d.courses || []).forEach(c => {
+      h += '<option value="' + escapeAttr(c) + '"' + (c === cur ? ' selected' : '') + '>' + escapeHtml(c) + '</option>';
+    });
+    sel.innerHTML = h || '<option value="">（暂无可布置的课程）</option>';
+  }).catch(() => {});
+}
+function hwTarget() {
+  return document.getElementById('hwCourse').value.trim() || document.getElementById('course').value.trim();
+}
+function hwPayload() {
+  return {
+    course_id: hwTarget(),
+    n: parseInt(document.getElementById('hwCount').value || '5', 10),
+    requirement: document.getElementById('hwRequirement').value.trim()
+  };
+}
+function showHwStatus(d) {
+  const info = document.getElementById('hwAssignInfo');
+  if (!info) return;
+  if (d && d.assigned) {
+    info.innerHTML =
+      '<div class="h">✓ 已布置（' + escapeHtml(d.course_id) + '）</div>' +
+      '<div style="font-size:12px;color:var(--text2);line-height:1.6;margin-top:4px">要求：' +
+      escapeHtml(d.requirement || '（无具体要求，按课程知识点出题）') + '</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-top:4px">共 ' + d.count + ' 题 · ' +
+      escapeHtml(d.updated_at || '') + ' · 学生端已可查看并作答</div>';
+  } else {
+    info.innerHTML = '<span class="empty">当前课程尚未布置课后习题，填写要求后点击「布置作业」即可。</span>';
+  }
+}
+function loadHwStatus() {
+  const cid = hwTarget();
+  if (!cid) { showHwStatus(null); return; }
+  apiCall('/api/homework?course_id=' + encodeURIComponent(cid) + '&n=0').then(showHwStatus).catch(() => {});
+}
+function previewHw() {
+  const p = hwPayload();
+  if (!p.course_id) { toast('请选择要布置的课程', true); return; }
+  const info = document.getElementById('hwAssignInfo');
+  info.innerHTML = '<span class="empty">正在按你的要求生成预览…</span>';
+  apiCall('/api/homework?course_id=' + encodeURIComponent(p.course_id) + '&n=' + p.n +
+    '&requirement=' + encodeURIComponent(p.requirement)).then(d => {
+    const qs = d.questions || [];
+    if (!qs.length) { info.innerHTML = '<span class="empty">未能生成题目，请检查课程是否有知识点。</span>'; return; }
+    info.innerHTML = '<div class="h">📝 预览（尚未保存，' + (d.mode === 'llm' ? 'AI 出题' : '按知识点生成') + ' · 共 ' + qs.length + ' 题）</div>' +
+      qs.slice(0, 3).map((q, i) => '<div style="font-size:12px;color:var(--text2);margin-top:6px;line-height:1.6">' +
+        (i + 1) + '. ' + escapeHtml(q.q) + '</div>').join('') +
+      '<div style="font-size:11px;color:var(--muted);margin-top:6px">预览仅展示前 3 题，确认无误后点击「布置作业」保存。</div>';
+  }).catch(e => {
+    info.innerHTML = '<span class="empty">预览失败：' + escapeHtml(e.message || e) + '</span>';
+  });
+}
+function assignHw() {
+  const p = hwPayload();
+  if (!p.course_id) { toast('请选择要布置的课程', true); return; }
+  apiCall('/api/homework/assign', 'POST', p).then(d => {
+    toast('已布置课后习题，学生端可立即作答');
+    showHwStatus(d);
+    document.getElementById('hwRequirement').value = '';
+  }).catch(e => {
+    toast('布置失败：' + (e.message || e), true);
+  });
+}
+function clearHw() {
+  const cid = hwTarget();
+  if (!cid) { toast('请选择课程', true); return; }
+  if (!confirm('确定撤销该课程的课后习题布置吗？学生端将不再看到布置要求。')) return;
+  apiCall('/api/homework/clear', 'POST', { course_id: cid }).then(d => {
+    toast('已撤销布置');
+    showHwStatus(null);
+  }).catch(e => toast('取消失败：' + (e.message || e), true));
+}
 document.getElementById('btnQuizStart').onclick = loadQuiz;
+document.getElementById('btnHwPreview').onclick = previewHw;
+document.getElementById('btnHwAssign').onclick = assignHw;
+document.getElementById('btnHwClear').onclick = clearHw;
 init();
 </script>
 </body>

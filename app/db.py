@@ -81,7 +81,11 @@ def _init_db() -> None:
             id SERIAL PRIMARY KEY, username TEXT NOT NULL, course_id TEXT NOT NULL,
             filename TEXT NOT NULL, category TEXT NOT NULL, label TEXT NOT NULL,
             size BIGINT NOT NULL DEFAULT 0, text_content TEXT NOT NULL DEFAULT '',
-            uploaded_at TEXT NOT NULL);"""
+            uploaded_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS homework (
+            course_id TEXT PRIMARY KEY, requirement TEXT NOT NULL DEFAULT '',
+            count INTEGER NOT NULL DEFAULT 5, teacher_name TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL);"""
         with _lock, backend_conn() as c:
             c.execute(ddl)
         return
@@ -100,6 +104,10 @@ def _init_db() -> None:
                   "category TEXT NOT NULL, label TEXT NOT NULL, "
                   "size INTEGER NOT NULL DEFAULT 0, text_content TEXT NOT NULL DEFAULT '', "
                   "uploaded_at TEXT NOT NULL)")
+        c.execute("CREATE TABLE IF NOT EXISTS homework ("
+                  "course_id TEXT PRIMARY KEY, requirement TEXT NOT NULL DEFAULT '', "
+                  "count INTEGER NOT NULL DEFAULT 5, teacher_name TEXT NOT NULL DEFAULT '', "
+                  "updated_at TEXT NOT NULL)")
 
 
 _init_db()
@@ -283,3 +291,35 @@ def delete_course(course_id: str) -> None:
     with _lock, backend_conn() as c:
         c.execute(placehint("DELETE FROM graphs WHERE course_id=%s"), (course_id,))
         c.execute(placehint("DELETE FROM files WHERE course_id=%s"), (course_id,))
+
+
+# ---------- 课后习题布置 ----------
+
+def upsert_homework(course_id: str, requirement: str, count: int, teacher_name: str) -> Dict:
+    with _lock, backend_conn() as c:
+        c.execute(placehint(
+            "INSERT INTO homework(course_id, requirement, count, teacher_name, updated_at) "
+            "VALUES(%s,%s,%s,%s,%s) ON CONFLICT(course_id) DO UPDATE SET "
+            "requirement=excluded.requirement, count=excluded.count, "
+            "teacher_name=excluded.teacher_name, updated_at=excluded.updated_at"),
+            (course_id, requirement or "", int(count), teacher_name, _ts()))
+    return {"course_id": course_id, "requirement": requirement or "",
+            "count": int(count), "teacher_name": teacher_name, "assigned": True,
+            "updated_at": _ts()}
+
+
+def get_homework(course_id: str) -> Optional[Dict]:
+    with _lock, backend_conn() as c:
+        row = c.execute(placehint(
+            "SELECT course_id, requirement, count, teacher_name, updated_at "
+            "FROM homework WHERE course_id=%s"), (course_id,)).fetchone()
+    if not row:
+        return None
+    return {"course_id": row["course_id"], "requirement": row["requirement"] or "",
+            "count": int(row["count"] or 5), "teacher_name": row["teacher_name"] or "",
+            "assigned": True, "updated_at": row["updated_at"]}
+
+
+def clear_homework(course_id: str) -> None:
+    with _lock, backend_conn() as c:
+        c.execute(placehint("DELETE FROM homework WHERE course_id=%s"), (course_id,))

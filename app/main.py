@@ -360,14 +360,59 @@ def chat(course_id: str, body: RequestChat, _: dict = Depends(require_user)):
     return chat_engine.ask(course_id, body.question, graph, history, provider=body.provider)
 
 
-@app.get("/api/quiz/generate")
-def quiz_generate(course_id: str, n: int = 5, _: dict = Depends(require_user)):
-    """学生端自动刷题：基于当前课程生成一组结构化单选题。"""
+@app.get("/api/homework")
+def homework_get(course_id: str, n: int = 5, requirement: str = "", _: dict = Depends(require_user)):
+    """课后习题：学生取题（自动携带教师布置要求）；教师生成预览（requirement 参数不保存）。
+
+    - 若该课程已有教师布置的要求，则优先按布置要求出题；
+    - requirement 参数用于教师「生成预览」，仅本次生效、不入库；
+    - n<=0 时不生成题目，仅返回布置状态（供教师面板展示）。
+    """
     graph = graph_store.get_store().get_graph(course_id)
     if not graph:
         raise HTTPException(404, f"未找到课程：{course_id}")
+    from . import db as db_
     from . import quiz as quiz_engine
-    return quiz_engine.generate_quiz(graph, n)
+    hw = db_.get_homework(course_id)
+    req = requirement.strip() or (hw.get("requirement") if hw else "") or ""
+    result = {"assigned": bool(hw), "course_id": course_id,
+              "requirement": hw.get("requirement", "") if hw else "",
+              "teacher_name": hw.get("teacher_name", "") if hw else "",
+              "updated_at": hw.get("updated_at", "") if hw else "",
+              "count": hw.get("count", n) if hw else n}
+    if int(n or 0) > 0:
+        generated = quiz_engine.generate_quiz(graph, int(n), req)
+        result.update(generated)
+    return result
+
+
+@app.post("/api/homework/assign")
+def homework_assign(body: dict, user: dict = Depends(require_user)):
+    """教师布置课后习题：保存布置要求与题数，学生端立即可见。"""
+    if user["role"] != "teacher":
+        raise HTTPException(403, "只有教师可以布置课后习题")
+    course_id = str(body.get("course_id") or "").strip()
+    if not course_id:
+        raise HTTPException(400, "缺少课程")
+    graph = graph_store.get_store().get_graph(course_id)
+    if not graph:
+        raise HTTPException(404, f"未找到课程：{course_id}")
+    from . import db as db_
+    n = max(1, min(int(body.get("n") or 5), 10))
+    return db_.upsert_homework(course_id, str(body.get("requirement") or "").strip(), n, user["username"])
+
+
+@app.post("/api/homework/clear")
+def homework_clear(body: dict, user: dict = Depends(require_user)):
+    """教师撤销某课程的课后习题布置。"""
+    if user["role"] != "teacher":
+        raise HTTPException(403, "只有教师可以撤销课后习题")
+    course_id = str(body.get("course_id") or "").strip()
+    if not course_id:
+        raise HTTPException(400, "缺少课程")
+    from . import db as db_
+    db_.clear_homework(course_id)
+    return {"ok": True, "course_id": course_id}
 
 
 @app.get("/api/ai/providers")
