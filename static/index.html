@@ -157,7 +157,8 @@
   .auth-card input,.auth-card select{width:100%}
   .btn-main{width:100%;padding:11px;font-size:14px}
   .btn-quick{width:100%;padding:11px;font-size:14px;margin-top:10px;background:linear-gradient(135deg,var(--acc),#0f9d74);color:#06231a;font-weight:700;border:0;border-radius:8px;cursor:pointer}
-  .btn-quick:hover{filter:brightness(1.08)}
+.btn-quick:hover{filter:brightness(1.08)}
+.btn-quick-stu{margin-top:8px;background:linear-gradient(135deg,var(--sec),#c9a53a);color:#231b06}
   .quick-note{text-align:center;font-size:11px;color:var(--muted);margin-top:6px}
   .auth-err{color:var(--danger);font-size:12px;min-height:16px;margin-top:10px}
   /* 新手使用流程通用步骤卡样式（供主图谱区覆盖层 #tourHome 复用） */
@@ -196,6 +197,7 @@
       <div class="field"><label>密码</label><input type="password" id="loginPass" placeholder="请输入密码"></div>
       <button type="button" class="btn-main" onclick="doLogin()">登 录</button>
       <button type="button" class="btn-quick" onclick="quickLogin('teacher')">⚡ 一键快速体验（教师演示账号）</button>
+      <button type="button" class="btn-quick btn-quick-stu" onclick="quickLogin('student')">⚡ 一键快速体验（学生演示账号）</button>
       <div class="quick-note">也可点击下方切换「注册」，创建学生 / 教师账号</div>
     </div>
     <div id="formReg" style="display:none">
@@ -811,20 +813,19 @@ async function doLogin() {
 }
 async function quickLogin(role) {
   setAuthErr('');
-  document.getElementById('loginUser').value = 'teacher';
-  document.getElementById('loginPass').value = '123456';
-  try {
-    const d = await apiCall('/api/auth/login', 'POST', { username: 'teacher', password: '123456' });
-    localStorage.setItem('kg_token', d.token); enterApp(d); return;
-  } catch (e) {
+  const accounts = role === 'student'
+    ? [['student', '123456']]
+    : [['teacher', '123456'], ['student', '123456']];
+  document.getElementById('loginUser').value = accounts[0][0];
+  document.getElementById('loginPass').value = accounts[0][1];
+  for (const [u, p] of accounts) {
     try {
-      document.getElementById('loginUser').value = 'student';
-      const d2 = await apiCall('/api/auth/login', 'POST', { username: 'student', password: '123456' });
-      localStorage.setItem('kg_token', d2.token); enterApp(d2); return;
-    } catch (e2) {
-      setAuthErr('演示账号不可用，请在下面注册一个账号后登录');
-    }
+      const d = await apiCall('/api/auth/login', 'POST', { username: u, password: p });
+      document.getElementById('loginUser').value = u;
+      localStorage.setItem('kg_token', d.token); enterApp(d); return;
+    } catch (e) { /* 尝试下一个演示账号 */ }
   }
+  setAuthErr('演示账号不可用，请在下面注册一个账号后登录');
 }
 async function doRegister() {
   const username = document.getElementById('regUser').value.trim();
