@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 from fastapi import FastAPI, File, UploadFile, HTTPException, Header, Depends
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from typing import List
 
 from . import document_parser, llm_extractor, graph_store, pathfinder, rag_chat, db, assistant, classify, seed
@@ -19,6 +20,9 @@ app = FastAPI(title="AIGC 课程知识图谱", version="0.5.0")
 @app.get("/", include_in_schema=False)
 def index():
     return FileResponse(STATIC_DIR / "index.html")
+
+# 静态资源（本地 ECharts 等），保证离线便携环境无需联网也能渲染图谱
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 extractor = llm_extractor.build_extractor()
 chat_engine = rag_chat.build_chat_engine()
@@ -354,6 +358,16 @@ def chat(course_id: str, body: RequestChat, _: dict = Depends(require_user)):
         raise HTTPException(404, f"未找到课程：{course_id}")
     history = [{"role": m.role, "content": m.content} for m in body.history]
     return chat_engine.ask(course_id, body.question, graph, history, provider=body.provider)
+
+
+@app.get("/api/quiz/generate")
+def quiz_generate(course_id: str, n: int = 5, _: dict = Depends(require_user)):
+    """学生端自动刷题：基于当前课程生成一组结构化单选题。"""
+    graph = graph_store.get_store().get_graph(course_id)
+    if not graph:
+        raise HTTPException(404, f"未找到课程：{course_id}")
+    from . import quiz as quiz_engine
+    return quiz_engine.generate_quiz(graph, n)
 
 
 @app.get("/api/ai/providers")

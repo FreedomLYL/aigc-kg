@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AIGC 课程知识图谱系统</title>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script src="/static/echarts.min.js"></script>
+<script>if(!window.echarts)document.write('<scr'+'ipt src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"><\/scr'+'ipt>');</script>
 <style>
   :root{--bg:#0d1410;--panel:#142019;--line:#223c33;--acc:#2fd4a0;--acc2:#f0c24b;
         --txt:#e9f4ef;--muted:#8aa89e;--good:#3ddc97;--danger:#ff5b5b;--edit:#ffcc5b}
@@ -80,6 +81,34 @@
   .pill{display:inline-block;background:#1d332b;color:var(--txt);border-radius:999px;
     padding:3px 9px;font-size:12px;margin:3px 3px 0 0;cursor:pointer;border:1px solid var(--line)}
   .pill.on{background:var(--good);color:#06231a;border-color:var(--good)}
+  .master-tools{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+  .master-tools button{flex:1;padding:6px 8px;font-size:12px}
+  .master-tools .count{flex:0 0 auto;font-size:12px;color:var(--muted)}
+  .copy-x{background:transparent;border:1px solid rgba(94,234,192,.3);color:var(--acc);font-size:11px;padding:2px 8px;border-radius:6px;margin-top:6px;cursor:pointer}
+  .copy-x:hover{background:rgba(47,212,160,.12);border-color:var(--acc)}
+  /* 自动刷课 */
+  .learn-bar{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .learn-bar button{flex:0 0 auto;padding:6px 10px;font-size:12px}
+  .learn-progress{flex:1;height:6px;background:rgba(94,234,192,.15);border-radius:6px;overflow:hidden}
+  .learn-progress i{display:block;height:100%;background:var(--acc);width:0;transition:width .25s}
+  .learn-card{background:rgba(94,234,192,.06);border:1px solid rgba(94,234,192,.2);border-radius:12px;padding:10px;margin-bottom:6px}
+  .learn-card .lq{font-size:14px;font-weight:600;margin-bottom:4px;color:var(--text)}
+  .learn-card .lcat{font-size:11px;color:var(--acc)}
+  .learn-card .ldef{font-size:12px;line-height:1.6;color:var(--text2);margin-top:4px;white-space:pre-wrap}
+  .learn-card .rel{margin-top:8px}
+  .learn-card .rel span{font-size:11px;color:var(--muted)}
+  .learn-pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+  .learn-pills em{font-style:normal;font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(240,194,75,.12);color:var(--sec)}
+  /* 自动刷题 */
+  .quiz-head{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .quiz-head select{flex:1}
+  .quiz-prog{font-size:11px;color:var(--muted);margin-bottom:4px}
+  .opt{display:block;width:100%;margin:5px 0;padding:8px 10px;font-size:12px;border:1px solid rgba(94,234,192,.25);border-radius:8px;background:transparent;cursor:pointer;color:var(--text);text-align:center}
+  .opt:hover{border-color:var(--acc)}
+  .opt.correct{font-weight:600;border-color:var(--good, #06d6a0);background:rgba(94,234,192,.14)}
+  .opt.wrong{border-color:#f87171;background:rgba(248,113,113,.13)}
+  .opt.dim{opacity:.4}
+  .quiz-explain{font-size:12px;line-height:1.6;margin:8px 0 4px;padding:8px 10px;border-radius:8px;background:rgba(94,234,192,.07);border-left:3px solid var(--acc);color:var(--text2)}
   #list{margin-top:4px}
   .empty{color:var(--muted);font-size:13px}
   .edit-panel{display:none}
@@ -302,8 +331,39 @@
         <button id="btnClearChat" class="ghost" style="width:100%;margin-top:6px">清空对话</button>
       </section>
 
+      <section id="secLearn">
+        <h2>自动刷课</h2>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:6px">按学习顺序自动“过一遍”本课程知识点，可播放 / 暂停、前后切换。</p>
+        <div class="learn-bar">
+          <button id="btnLearnPrev" class="ghost">◀ 上一步</button>
+          <button id="btnLearnPlay" class="ghost">▶ 开始</button>
+          <button id="btnLearnNext" class="ghost">下一步 ▶</button>
+        </div>
+        <div class="learn-progress"><i id="learnProg"></i></div>
+        <div class="learn-card" id="learnCard"><span class="empty">载入课程并点击「开始」即可自动学习。</span></div>
+      </section>
+
+      <section id="secQuiz">
+        <h2>自动刷题</h2>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:6px">基于当前课程自动出题，逐题作答即时判分并查看解析。</p>
+        <div class="quiz-head">
+          <select id="quizCount">
+            <option value="5">5 题</option>
+            <option value="8">8 题</option>
+            <option value="10">10 题</option>
+          </select>
+          <button id="btnQuizStart">开始刷题</button>
+        </div>
+        <div id="quizBox"></div>
+      </section>
+
       <section id="secRec">
         <h2>学习路径推荐</h2>
+        <div id="masterTools" class="master-tools" style="display:none">
+          <button id="btnAllMaster" class="ghost">全部掌握</button>
+          <button id="btnClearMaster" class="ghost">清空掌握</button>
+          <span class="count" id="masterCount">已掌握 0</span>
+        </div>
         <div id="checkWrap" class="card"><div class="h">点击标记已掌握知识点</div><div id="list"></div></div>
         <button id="btnRec" style="width:100%;margin-top:6px">推荐下一步学习</button>
         <div id="recChips" style="margin-top:6px"></div>
@@ -509,6 +569,11 @@ function renderGraph(g, info) {
   renderMasterList();
   populateNodeSelectors();
   renderTour();
+  __stopLearn();
+  __learnSeq = [];
+  __learnIdx = -1;
+  const playBtn = document.getElementById('btnLearnPlay');
+  if (playBtn) playBtn.textContent = '▶ 开始';
   CHART.on('click', p => {
     if (p.dataType === 'node') showNodeDetail(p.data);
     else if (p.dataType === 'edge' && editMode) toast('点击端点节点可在详情中删除关系');
@@ -599,16 +664,24 @@ window.deleteNode = async function(name) {
   await reloadGraph();
 };
 
+function refreshMasterCount() {
+  const el = document.getElementById('masterCount');
+  const t = document.getElementById('masterTools');
+  if (el) el.textContent = '已掌握 ' + (window.__mastered ? window.__mastered.size : 0) + ' / ' + NODES.length;
+  if (t) t.style.display = (CURRENT_ROLE.role === 'student' && NODES.length) ? '' : 'none';
+}
 function renderMasterList() {
   const box = document.getElementById('list');
-  const on = new Set();
-  box.innerHTML = NODES.map(n => '<span class="pill" data-n="' + escapeAttr(n.name) + '">' + escapeHtml(n.name) + '</span>').join('');
+  const on = new Set(window.__mastered || []);
+  box.innerHTML = NODES.map(n => '<span class="pill' + (on.has(n.name) ? ' on' : '') + '" data-n="' + escapeAttr(n.name) + '">' + escapeHtml(n.name) + '</span>').join('');
   box.querySelectorAll('.pill').forEach(el => el.onclick = () => {
     el.classList.toggle('on');
     on.has(el.dataset.n) ? on.delete(el.dataset.n) : on.add(el.dataset.n);
     window.__mastered = on;
+    refreshMasterCount();
   });
   window.__mastered = on;
+  refreshMasterCount();
 }
 
 function populateNodeSelectors() {
@@ -687,15 +760,25 @@ function switchAuthTab(t) {
   document.getElementById('formReg').style.display = t === 'reg' ? '' : 'none';
   setAuthErr('');
 }
-function enterApp(me) {
+async function enterApp(me) {
   hideAuth();
   document.getElementById('userArea').classList.remove('hidden');
   setUserChip(me.username, me.role);
   applyRole(me.role);
   buildNav(me.role);
   currentCourse = document.getElementById('course').value;
-  refreshCourseList();
-  loadChat();
+  let last = '';
+  try { last = localStorage.getItem('kg_last_course') || ''; } catch (e) {}
+  try { await refreshCourseList(); } catch (e) {}
+  const opts = document.getElementById('courseList').options;
+  let target = last;
+  if (target && ![].some.call(opts, o => o.value === target)) target = '';
+  if (!target) {
+    for (let i = 0; i < opts.length; i++) { if (opts[i].value) { target = opts[i].value; break; } }
+    if (!target) target = ((COURSE_TEMPLATES['机器学习'] || [])[0] || '');
+  }
+  if (target) { selectCourse(target); }
+  else { loadChat(); }
 }
 function doLogout() {
   const t = localStorage.getItem('kg_token');
@@ -780,6 +863,8 @@ const NAV_ITEMS = [
   { id: 'nav_graph',  label: '知识图谱', icon: '◍', sec: 'secChart' },
   { id: 'nav_doc',    label: '文档管理', icon: '▤', sec: 'secFileLib', roles: ['teacher'] },
   { id: 'nav_path',   label: '学习路径', icon: '➤', sec: 'secRec', roles: ['student'] },
+  { id: 'nav_learn',  label: '自动刷课', icon: '❖', sec: 'secLearn', roles: ['student'] },
+  { id: 'nav_quiz',   label: '自动刷题', icon: '✎', sec: 'secQuiz',  roles: ['student'] },
   { id: 'nav_ai',     label: 'AI助手',  icon: '◉', sec: 'secAI', kind: 'ai' },
 ];
 function buildNav(role) {
@@ -886,6 +971,7 @@ async function selectCourse(name) {
         : '已载入：' + name);
     } catch (e2) { toast('载入失败：' + e2.message, true); return; }
   }
+  try { localStorage.setItem('kg_last_course', name); } catch (e) {}
   loadChat();
 }
 
@@ -949,6 +1035,7 @@ document.getElementById('btnEditToggle').onclick = () => {
     if (rolePanel) rolePanel.style.display = 'none';
     detail.classList.remove('show');
     populateNodeSelectors();
+    toast('已进入编辑模式：点击图中节点可编辑/删除，也可用右侧面板增删知识点或关系');
   } else {
     exitEdit();
     if (rolePanel) rolePanel.style.display = '';
@@ -1013,7 +1100,9 @@ function renderChat(suggested) {
   if (!window.__chatHistory.length) { box.innerHTML = chatGreetingHtml(); box.scrollTop = box.scrollHeight; renderQuick(suggested || []); return; }
   box.innerHTML = window.__chatHistory.map(m =>
     '<span class="msg ' + (m.role === 'user' ? 'user' : 'ai') + '">' + escapeHtml(m.content) +
-    (m.meta ? '<span class="meta">' + escapeHtml(m.meta) + '</span>' : '') + '</span>').join('');
+    (m.meta ? '<span class="meta">' + escapeHtml(m.meta) + '</span>' : '') +
+    (m.role === 'ai' ? '<button class="copy-x" onclick="copyChat(this)" title="复制该条回复">复制回复</button>' : '') +
+    '</span>').join('');
   box.scrollTop = box.scrollHeight;
   renderQuick(suggested || []);
 }
@@ -1178,6 +1267,21 @@ document.getElementById('btnRec').onclick = async () => {
   } catch(e) { toast('推荐失败：' + e.message, true); }
 };
 
+function copyText(text, tip) {
+  const t = String(text || '');
+  const done = () => toast(tip || '已复制到剪贴板');
+  const doneLegacy = () => {
+    const ta = document.createElement('textarea');
+    ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { toast('复制失败，请手动选择复制', true); }
+    document.body.removeChild(ta);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(t).then(done).catch(doneLegacy);
+  } else { doneLegacy(); }
+}
+
 function escapeHtml(s) { return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function escapeAttr(s) { return (s || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 
@@ -1248,7 +1352,8 @@ function bindAiGen(side) {
       const tag = '<span class="tag">' + (d.mode === 'llm' ? 'AI 生成' + (who ? ' · ' + who + ' 引擎' : '') : '演示模板') + '</span>';
       document.getElementById(ui.out).innerHTML =
         '<div class="h">' + escapeHtml(d.tool.name) + ' ' + tag + '</div>' +
-        '<pre>' + escapeHtml(d.generated) + '</pre>';
+        '<pre id="aiOutText">' + escapeHtml(d.generated) + '</pre>' +
+        '<button class="copy-x" onclick="copyAiOut()">一键复制内容</button>';
     } catch (e) {
       document.getElementById(ui.out).innerHTML = '<span class="empty">生成失败。</span>';
       toast('生成失败：' + e.message, true);
@@ -1280,6 +1385,7 @@ document.getElementById('btnAnalyze').onclick = () => {
     '<div style="color:var(--muted)">孤立节点：' + (isolated.length
       ? isolated.map(s => escapeHtml(s.name)).join('、') + '（共 ' + isolated.length + ' 个，建议核查是否遗漏关系）'
       : '无，图谱联通性良好') + '</div>';
+  document.getElementById('analyzeOut').innerHTML += '<button class="copy-x" onclick="copyBlock(\'analyzeOut\')">复制结果</button>';
 };
 
 // --- 教师端：知识点搜索 / 定位 ---
@@ -1330,6 +1436,7 @@ document.getElementById('btnStat').onclick = () => {
       '<div style="flex:1;height:10px;background:#1d332b;border-radius:5px;overflow:hidden">' +
       '<div style="height:100%;width:' + Math.round(cnt / max * 100) + '%;background:var(--acc)"></div></div>' +
       '<b style="width:24px;text-align:right;color:var(--acc)">' + cnt + '</b></div>').join('');
+  document.getElementById('statOut').innerHTML += '<button class="copy-x" onclick="copyBlock(\'statOut\')">复制结果</button>';
 };
 
 // --- 教师端：课程文件库（按内容自动分类） ---
@@ -1465,6 +1572,176 @@ document.getElementById('btnScopeFiles').textContent = _fileScopeAll ? '仅显�
 
 window.addEventListener('resize', () => CHART.resize());
 document.getElementById('btnLogout').onclick = doLogout;
+document.getElementById('btnAllMaster').onclick = () => {
+  if (!NODES.length) { toast('请先载入课程图谱', true); return; }
+  window.__mastered = new Set(NODES.map(n => n.name));
+  renderMasterList(); toast('已把全部知识点标记为掌握');
+};
+document.getElementById('btnClearMaster').onclick = () => {
+  window.__mastered = new Set();
+  renderMasterList(); toast('已清空掌握标记');
+};
+window.copyAiOut = function() { const el = document.getElementById('aiOutText'); if (el) copyText(el.innerText, '已复制教学辅助内容'); };
+window.copyChat = function(btn) {
+  const m = (btn.closest && btn.closest('.msg'));
+  let t = m ? m.innerText : '';
+  t = t.replace(/\n*复制回复$/, '').replace(/\s+$/, '');
+  copyText(t, '已复制该条回复');
+};
+window.copyBlock = function(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  let t = el.innerText || '';
+  t = t.replace(/复制结果\s*$/, '').trim();
+  copyText(t, '已复制结果');
+};
+
+// ================= 自动刷课（AI 导学滚动） =================
+const LEARN_SPEED = 5000;
+let __learnSeq = [], __learnIdx = -1, __learnTimer = null;
+function buildLearnSequence() {
+  if (!NODES.length) return [];
+  const deg = {};
+  NODES.forEach(n => { deg[n.name] = 0; });
+  LINKS.forEach(l => {
+    if (deg[l.source] !== undefined) deg[l.source]++;
+    if (deg[l.target] !== undefined) deg[l.target]++;
+  });
+  const byCat = {};
+  NODES.forEach(n => { (byCat[n.category] = byCat[n.category] || []).push(n); });
+  const seq = [];
+  ['概念', '术语', '定理', '方法', '算法', '公式', '应用'].forEach(c => (byCat[c] || []).forEach(n => seq.push(n)));
+  NODES.forEach(n => { if (!seq.includes(n)) seq.push(n); });
+  return seq.slice().sort((a, b) => ((deg[b.name] || 0) - (deg[a.name] || 0)));
+}
+function highlightNodeByName(name) {
+  try {
+    const opts = CHART.getOption();
+    const data = (opts && opts.series && opts.series[0] && opts.series[0].data) || [];
+    CHART.dispatchAction({ type: 'downplay', seriesIndex: 0 });
+    const i = data.findIndex(d => d && d.name === name);
+    if (i >= 0) CHART.dispatchAction({ type: 'highlight', seriesIndex: 0, dataIndex: i });
+  } catch (e) {}
+}
+function __stopLearn() {
+  if (__learnTimer) { clearInterval(__learnTimer); __learnTimer = null; }
+}
+function showLearnStep() {
+  const card = document.getElementById('learnCard');
+  const prog = document.getElementById('learnProg');
+  if (!__learnSeq.length) {
+    card.innerHTML = '<span class="empty">请先载入课程知识图谱，再开始刷课。</span>';
+    return;
+  }
+  if (__learnIdx < 0) __learnIdx = 0;
+  if (__learnIdx >= __learnSeq.length) __learnIdx = __learnSeq.length - 1;
+  const n = __learnSeq[__learnIdx];
+  highlightNodeByName(n.name);
+  const rels = LINKS.filter(l => l.source === n.name || l.target === n.name)
+    .map(l => (l.source === n.name ? l.target : l.source))
+    .filter((v, i, arr) => arr.indexOf(v) === i);
+  const relHtml = rels.length
+    ? '<div class="rel"><span>相关知识点：</span><div class="learn-pills">' +
+      rels.slice(0, 10).map(r => '<em>' + escapeHtml(r) + '</em>').join('') + '</div></div>'
+    : '';
+  card.innerHTML =
+    '<div class="lq">' + (__learnIdx + 1) + ' / ' + __learnSeq.length + ' · ' + escapeHtml(n.name) + '</div>' +
+    '<span class="lcat">分类：' + escapeHtml(n.category || '知识点') + '</span>' +
+    '<div class="ldef">' + escapeHtml(n.definition || '（暂无详细定义）') + '</div>' + relHtml;
+  prog.style.width = (((__learnIdx + 1) / __learnSeq.length) * 100) + '%';
+  document.getElementById('btnLearnPlay').textContent = __learnTimer ? '⏸ 暂停' : '▶ 播放';
+}
+function learnGo(delta) {
+  if (!__learnSeq.length) buildLearnSequence();
+  if (!__learnSeq.length) { showLearnStep(); return; }
+  let ni = __learnIdx + delta;
+  if (ni < 0) ni = 0;
+  if (ni >= __learnSeq.length) {
+    __learnIdx = __learnSeq.length - 1;
+    __stopLearn(); showLearnStep(); toast('已学完全部知识点');
+    return;
+  }
+  __learnIdx = ni; showLearnStep();
+}
+function toggleLearnPlay() {
+  if (!NODES.length) { toast('请先载入课程图谱', true); return; }
+  buildLearnSequence();
+  if (__learnTimer) {
+    __stopLearn();
+    document.getElementById('btnLearnPlay').textContent = '▶ 播放';
+    toast('已暂停');
+    return;
+  }
+  if (__learnIdx < 0) __learnIdx = 0;
+  __learnTimer = setInterval(() => {
+    if (__learnIdx + 1 >= __learnSeq.length) {
+      __stopLearn();
+      document.getElementById('btnLearnPlay').textContent = '▶ 播放';
+      showLearnStep(); toast('已学完全部知识点');
+      return;
+    }
+    __learnIdx++; showLearnStep();
+  }, LEARN_SPEED);
+  document.getElementById('btnLearnPlay').textContent = '⏸ 暂停';
+  showLearnStep(); toast('开始自动刷课，可随时暂停');
+}
+// ================= 自动刷题（选择题自动判分） =================
+let __quiz = [], __quizIdx = 0, __quizScore = 0, __quizAnswered = false;
+function loadQuiz() {
+  const courseId = document.getElementById('course').value.trim();
+  if (!courseId) { toast('请先选择课程', true); return; }
+  const box = document.getElementById('quizBox');
+  box.innerHTML = '<span class="empty">正在为你出题…</span>';
+  const n = parseInt(document.getElementById('quizCount').value || '5', 10);
+  apiCall('/api/quiz/generate?course_id=' + encodeURIComponent(courseId) + '&n=' + n).then(r => {
+    const qs = (r && r.questions) || [];
+    if (!qs.length) { box.innerHTML = '<span class="empty">暂未生成题目，请先确保该课程有知识点。</span>'; return; }
+    __quiz = qs; __quizIdx = 0; __quizScore = 0; __quizAnswered = false;
+    renderQuiz();
+  }).catch(e => {
+    box.innerHTML = '<span class="empty">出题失败：' + escapeHtml(e.message || e) + '</span>';
+  });
+}
+function renderQuiz() {
+  const box = document.getElementById('quizBox');
+  if (__quizIdx >= __quiz.length) {
+    box.innerHTML =
+      '<div class="learn-card"><div class="lq">本次得分：' + __quizScore + ' / ' + __quiz.length +
+      '（正确率 ' + Math.round((__quizScore / __quiz.length) * 100) + '%）</div></div>' +
+      '<button class="ghost" style="width:100%;margin-top:6px" onclick="loadQuiz()">再来一组</button>';
+    return;
+  }
+  const it = __quiz[__quizIdx];
+  __quizAnswered = false;
+  box.innerHTML =
+    '<div class="quiz-prog">第 ' + (__quizIdx + 1) + ' / ' + __quiz.length + ' 题</div>' +
+    '<div class="learn-card"><div class="lq">' + escapeHtml(it.q) + '</div>' +
+    it.options.map((o, i) =>
+      '<button class="opt" data-i="' + i + '" onclick="answerQuiz(this,' + i + ')">' + (i + 1) + '. ' + escapeHtml(o) + '</button>'
+    ).join('') +
+    '<div id="quizFeed"></div></div>';
+}
+function answerQuiz(btn, picked) {
+  if (__quizAnswered) return;
+  __quizAnswered = true;
+  const it = __quiz[__quizIdx];
+  const correct = (it.answer === picked);
+  if (correct) __quizScore++;
+  const all = btn.parentElement.querySelectorAll('.opt');
+  all.forEach(el => { el.classList.add('dim'); el.disabled = true; });
+  all[it.answer].classList.add('correct');
+  if (!correct) btn.classList.add('wrong');
+  document.getElementById('quizFeed').innerHTML =
+    '<div class="quiz-explain">' + (correct ? '回答正确 ✓' : '回答错误 ✗（正确答案是第 ' + (it.answer + 1) + ' 项）') +
+    '<br>' + escapeHtml(it.explain) + '</div>' +
+    '<button class="ghost" style="width:100%;margin-top:6px" onclick="nextQuiz()">' +
+    (__quizIdx + 1 < __quiz.length ? '下一题' : '查看成绩') + '</button>';
+}
+function nextQuiz() { __quizIdx++; renderQuiz(); }
+document.getElementById('btnLearnNext').onclick = () => { __stopLearn(); learnGo(1); };
+document.getElementById('btnLearnPrev').onclick = () => { __stopLearn(); learnGo(-1); };
+document.getElementById('btnLearnPlay').onclick = toggleLearnPlay;
+document.getElementById('btnQuizStart').onclick = loadQuiz;
 init();
 </script>
 </body>
