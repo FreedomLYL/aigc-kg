@@ -364,6 +364,21 @@
         <div id="quizBox"></div>
       </section>
 
+      <section id="secReport">
+        <h2>个人学习报告</h2>
+        <div id="reportWrap" style="margin-top:6px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <span style="font-size:12px;color:var(--muted)">基于你对 <b id="reportCourse" style="color:var(--acc)">当前课程</b> 的学习情况自动汇总</span>
+            <button id="btnPrintReport" class="ghost" onclick="printReport()">打印 / 存为PDF</button>
+          </div>
+          <div id="reportGauge" class="card" style="margin-top:8px"></div>
+          <div id="reportStats" class="card" style="margin-top:6px"></div>
+          <div id="reportMastered" class="card" style="margin-top:6px"></div>
+          <div id="reportWeak" class="card" style="margin-top:6px"></div>
+          <div id="reportAdvice" class="card" style="margin-top:6px"></div>
+        </div>
+      </section>
+
       <section id="secRec">
         <h2>学习路径推荐</h2>
         <div id="masterTools" class="master-tools" style="display:none">
@@ -428,6 +443,28 @@
           <button id="btnHwClear" class="ghost">撤销布置</button>
         </div>
         <div id="hwAssignInfo" class="card" style="margin-top:6px"><span class="empty">选择课程，填写布置要求（可选），即可布置课后习题；学生端可立即查看并作答。</span></div>
+      </section>
+
+      <section id="secEduStats">
+        <h2>学情分析</h2>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:6px">基于学生「课后习题」作答记录，统计各知识点的薄弱程度与学生整体掌握情况，帮助你定位教学重点。</p>
+        <div class="row" style="margin-bottom:6px;gap:6px">
+          <select id="statsCourse" style="flex:1"><option value="">当前课程</option></select>
+          <button id="btnStats">统计薄弱点</button>
+        </div>
+        <div id="statsView"></div>
+      </section>
+
+      <section id="secTeachPlan">
+        <h2>教案生成</h2>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:6px">基于当前课程知识图谱，一键生成结构化的 Markdown 教学大纲/教案（优先调用大模型，失败时自动本地生成），可直接复制。</p>
+        <div class="row" style="margin-bottom:6px;gap:6px">
+          <select id="planCourse" style="flex:1"><option value="">当前课程</option></select>
+          <button id="btnPlan">生成教学大纲</button>
+        </div>
+        <div id="planMode" style="font-size:11px;color:var(--muted);margin-bottom:4px"></div>
+        <div id="planOut" class="card planout" style="white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.6;max-height:420px;overflow:auto"></div>
+        <button id="btnCopyPlan" class="ghost" style="width:100%;margin-top:6px">复制教案</button>
       </section>
 
       <section id="secFileLib">
@@ -895,8 +932,11 @@ const NAV_ITEMS = [
   { id: 'nav_graph',  label: '知识图谱', icon: '◍', sec: 'secChart' },
   { id: 'nav_doc',    label: '文档管理', icon: '▤', sec: 'secFileLib', roles: ['teacher'] },
   { id: 'nav_hw',     label: '布置习题', icon: '✎', sec: 'secHwAssign', roles: ['teacher'] },
+  { id: 'nav_edu',    label: '学情分析', icon: '◬', sec: 'secEduStats', roles: ['teacher'] },
+  { id: 'nav_plan',   label: '教案生成', icon: '☷', sec: 'secTeachPlan', roles: ['teacher'] },
   { id: 'nav_path',   label: '学习路径', icon: '➤', sec: 'secRec', roles: ['student'] },
   { id: 'nav_quiz',   label: '课后习题', icon: '✎', sec: 'secQuiz',  roles: ['student'] },
+  { id: 'nav_report', label: '学习报告', icon: '▦', sec: 'secReport', roles: ['student'] },
   { id: 'nav_ai',     label: 'AI助手',  icon: '◉', sec: 'secAI', kind: 'ai' },
 ];
 function buildNav(role) {
@@ -921,6 +961,9 @@ function buildNav(role) {
       } else {
         const sec = document.getElementById(el.dataset.sec);
         if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (el.dataset.sec === 'secReport') setTimeout(showReport, 200);
+        if (el.dataset.sec === 'secEduStats') setTimeout(initStats, 200);
+        if (el.dataset.sec === 'secTeachPlan') setTimeout(initPlan, 200);
       }
     };
   });
@@ -1335,6 +1378,171 @@ document.getElementById('btnRec').onclick = () => {
   runRec();
 };
 
+// ---------- 自适应巩固：提交成绩 + 举一反三 ----------
+async function submitQuiz() {
+  if (!CURRENT_ROLE || CURRENT_ROLE.role !== 'student') return;
+  if (!__quiz.length) return;
+  try {
+    await apiCall('/api/quiz/submit', 'POST', {
+      course_id: currentCourse,
+      total: __quiz.length, correct: __quizScore,
+      wrong_points: __newWeakList,
+    });
+  } catch (e) {}  // 记录失败不阻断演示
+}
+async function varQuiz(pt, n) {
+  try {
+    const d = await apiCall('/api/quiz/variant', 'POST',
+      { course_id: currentCourse, point: pt, n: parseInt(n || 3, 10) });
+    if (!d.questions || !d.questions.length) { toast('未能生成巩固题', true); return; }
+    __quiz = d.questions; __quizIdx = 0; __quizScore = 0; __quizAnswered = false;
+    __newMaster = 0; __newWeakList = [];
+    renderQuiz();
+    const s = document.getElementById('secQuiz');
+    if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    toast('已针对「' + pt + '」生成变式题巩固');
+  } catch (e) { toast('巩固出题失败：' + e.message, true); }
+}
+document.addEventListener('click', e => {
+  const tgt = e.target && e.target.closest ? e.target.closest('[data-vpt]') : null;
+  if (tgt) varQuiz(tgt.getAttribute('data-vpt'), 2);
+});
+
+// ---------- 学生个人学习报告 ----------
+function reportName() { return document.getElementById('course').value.trim() || '当前课程'; }
+function showReport() {
+  const crs = reportName();
+  document.getElementById('reportCourse').textContent = crs;
+  const names = (NODES || []).map(n => n.name);
+  const mastered = new Set(window.__mastered || []);
+  const weak = new Set(window.__weak || []);
+  const m = names.filter(n => mastered.has(n));
+  const wk = names.filter(n => !mastered.has(n) && weak.has(n));
+  const rest = names.length - m.length - wk.length;
+  const pct = names.length ? Math.round(m.length * 100 / names.length) : 0;
+  document.getElementById('reportGauge').innerHTML =
+    '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">' +
+    '<div class="qring" style="background:conic-gradient(var(--acc) ' + (pct * 3.6) + 'deg, rgba(255,255,255,.08) 0)"><div class="qring-in">' + pct + '%</div></div>' +
+    '<div style="flex:1;min-width:150px">' +
+    '<div style="font-weight:700;font-size:13px">课程掌握度</div>' +
+    '<div style="display:flex;height:9px;border-radius:999px;overflow:hidden;margin:7px 0;background:rgba(255,255,255,.08)">' +
+    '<span style="width:' + (names.length ? m.length * 100 / names.length : 0) + '%;background:var(--good)"></span>' +
+    '<span style="width:' + (names.length ? wk.length * 100 / names.length : 0) + '%;background:var(--danger)"></span>' +
+    '<span style="flex:1;background:rgba(255,255,255,.10)"></span></div>' +
+    '<div style="font-size:11px;color:var(--muted)">已掌握 ' + m.length + ' · 薄弱 ' + wk.length + ' · 未学 ' + rest + '</div></div></div>';
+  document.getElementById('reportStats').innerHTML =
+    '<div class="h">作答情况（本会话累加）</div>' +
+    '<div style="font-size:12px;color:var(--text2);margin-top:6px;display:flex;gap:14px;flex-wrap:wrap">' +
+    '<span>本组作答 <b style="color:var(--acc)">' + __quiz.length + '</b></span>' +
+    '<span>本次得分 <b style="color:var(--acc)">' + __quizScore + '</b></span>' +
+    '<span>新增掌握 <b style="color:var(--good)">' + __newMaster + '</b></span>' +
+    '<span>薄弱 <b style="color:var(--danger)">' + __newWeakList.length + '</b></span></div>';
+  document.getElementById('reportMastered').innerHTML =
+    '<div class="h">已掌握知识点</div>' +
+    (m.length ? '<div style="margin-top:6px;line-height:2">' + m.map(x => '<span class="pill">' + escapeHtml(x) + '</span>').join(' ') + '</div>'
+      : '<span class="empty" style="margin-top:6px">还没有标记掌握的知识点，去学习或做题吧</span>');
+  document.getElementById('reportWeak').innerHTML =
+    '<div class="h">待巩固薄弱点</div>' +
+    (wk.length ? '<div style="margin-top:6px;line-height:2">' + wk.map(x => '<span class="pill weak" style="cursor:pointer" data-vpt="' + escapeHtml(x) + '" title="点击举一反三">' + escapeHtml(x) + ' ↗</span>').join(' ') + '</div>'
+      : '<span class="empty" style="margin-top:6px">暂无明显薄弱点，保持学习节奏</span>');
+  document.getElementById('reportAdvice').innerHTML =
+    '<div class="h">下一步建议</div>' +
+    '<div style="font-size:12px;line-height:1.7;color:var(--text2);margin-top:6px">' +
+    (wk.length
+      ? '优先针对 ' + wk.slice(0, 3).map(x => '<b style="color:var(--danger)">' + escapeHtml(x) + '</b>').join('、') + ' 等薄弱知识点进行巩固（可点击上方薄弱点直接举一反三），再按学习路径推荐继续推进未学内容。'
+      : (m.length ? '当前课程整体掌握良好，可点击「课程导览」查看知识结构，或进入「学习路径」继续拓展。' : '点击上方薄弱点或进入「课后习题」「学习路径」开始学习。')) +
+    '</div>';
+}
+function printReport() {
+  showReport();
+  const w = window.open('', '_blank');
+  if (!w) { toast('浏览器已拦截打印窗口', true); return; }
+  const crs = reportName();
+  w.document.write('<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>个人学习报告 - ' +
+    escapeHtml(crs) + '</title><style>body{font-family:-apple-system,"Segoe UI",sans-serif;max-width:720px;margin:24px auto;color:#e6f7f1;background:#0d1410;padding:0 16px}h1{font-size:22px}hr{border:none;border-top:1px solid #2a3a33}</style></head><body>' +
+    '<h1>📊 个人学习报告 <span style="font-weight:400;font-size:14px;color:#8fbfae">' + escapeHtml(crs) + '</span></h1><hr>' +
+    document.getElementById('reportGauge').innerHTML +
+    document.getElementById('reportStats').innerHTML +
+    document.getElementById('reportMastered').innerHTML +
+    document.getElementById('reportWeak').innerHTML +
+    document.getElementById('reportAdvice').innerHTML +
+    '<script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body></html>');
+  w.document.close();
+  toast('已打开学习报告打印窗口');
+}
+
+// ---------- 教师端：学情分析 ----------
+function initStats() {
+  const sel = document.getElementById('statsCourse');
+  sel.innerHTML = '<option value="">当前课程</option>' + (courseList || []).map(c =>
+    '<option>' + escapeHtml(c) + '</option>').join('');
+  document.getElementById('btnStats').onclick = loadStats;
+}
+async function loadStats() {
+  const sel = document.getElementById('statsCourse');
+  const crs = sel.value.trim();
+  const use = crs || currentCourse;
+  if (!use) { toast('请先选择课程', true); return; }
+  const v = document.getElementById('statsView');
+  v.innerHTML = '<span class="empty">正在统计…</span>';
+  try {
+    const d = await apiCall('/api/teacher/stats/summary?course_id=' + encodeURIComponent(use));
+    if (!d.summary || d.summary.students === 0) {
+      v.innerHTML = '<div class="card"><span class="empty">还没有学生作答记录。<br>让学生完成几组「课后习题」后，这里会自动统计各知识点薄弱情况。</span></div>';
+      return;
+    }
+    v.innerHTML =
+      '<div id="statsCard" class="card"><div class="h">「' + escapeHtml(use) + '」· 共 <b style="color:var(--acc)">' + d.summary.records + '</b> 次作答 / <b style="color:var(--acc)">' + d.summary.students + '</b> 名学生</div></div>' +
+      '<div id="statsCard1" class="card" style="margin-top:6px"><div class="h">知识点薄弱分布（按答错次数降序）</div><div style="margin-top:8px">' +
+      d.points.slice(0, 12).map(p => {
+        const maxW = Math.max(1, ...d.points.map(x => x.wrong_count));
+        const wPct = Math.round(p.wrong_count * 100 / maxW);
+        return '<div style="display:flex;align-items:center;gap:8px;margin:5px 0">' +
+          '<span style="flex:0 0 30%;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(p.name) + '</span>' +
+          '<div style="flex:1;height:8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden">' +
+          '<div style="width:' + wPct + '%;height:100%;background:linear-gradient(90deg,var(--danger),#f0c24b)"></div></div>' +
+          '<span class="tag ' + (p.wrong_count > 2 ? 'weak' : '') + '" style="flex:0 0 auto">' + p.wrong_count + '次</span></div>';
+      }).join('') || '<span class="empty">还没有出错记录</span>' +
+      '</div></div>' +
+      '<div id="statsCard2" class="card" style="margin-top:6px"><div class="h">学生作答概览</div><div style="margin-top:8px">' +
+      d.students.map(s => '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px dashed rgba(94,234,192,.12)">' +
+        '<b style="font-size:12px">' + escapeHtml(s.username) + '</b>' +
+        '<span style="font-size:11px;color:var(--muted)">' + s.records + '次 · 正确率 <b style="color:' + (s.avg_pct >= 80 ? 'var(--good)' : s.avg_pct >= 60 ? '#f0c24b' : 'var(--danger)') + '">' + s.avg_pct + '%</b></span></div>').join('') +
+      '</div></div>';
+  } catch (e) { v.innerHTML = '<span class="empty">统计失败：' + escapeHtml(e.message) + '</span>'; }
+}
+
+// ---------- 教师端：教案生成 ----------
+function initPlan() {
+  const sel = document.getElementById('planCourse');
+  sel.innerHTML = '<option value="">当前课程</option>' + (courseList || []).map(c =>
+    '<option>' + escapeHtml(c) + '</option>').join('');
+  document.getElementById('btnPlan').onclick = loadPlan;
+  document.getElementById('btnCopyPlan').onclick = () => {
+    const t = document.getElementById('planOut').innerText || '';
+    if (!t) { toast('请先生成教案', true); return; }
+    copyText(t); toast('教案已复制');
+  };
+}
+async function loadPlan() {
+  const sel = document.getElementById('planCourse');
+  const crs = sel.value.trim();
+  const use = crs || currentCourse;
+  if (!use) { toast('请先选择课程', true); return; }
+  const bt = document.getElementById('btnPlan');
+  const old = bt.innerHTML; bt.innerHTML = '生成中…'; bt.disabled = true;
+  document.getElementById('planMode').textContent = '';
+  try {
+    const d = await apiCall('/api/teacher/teaching-plan', 'POST', { course_id: use });
+    document.getElementById('planOut').textContent = d.plan || '（无内容）';
+    document.getElementById('planMode').textContent =
+      '已生成' + d.points + ' 个知识点 · 来源：' + (d.mode === 'llm' ? '大模型 AI' : '本地模板') + '（离线可用）';
+  } catch (e) {
+    document.getElementById('planOut').textContent = '';
+    toast('生成失败：' + e.message, true);
+  } finally { bt.innerHTML = old; bt.disabled = false; }
+}
+
 function copyText(text, tip) {
   const t = String(text || '');
   const done = () => toast(tip || '已复制到剪贴板');
@@ -1707,10 +1915,11 @@ function loadQuiz() {
 function renderQuiz() {
   const box = document.getElementById('quizBox');
   if (__quizIdx >= __quiz.length) {
+    submitQuiz();
     const pct = __quiz.length ? Math.round((__quizScore / __quiz.length) * 100) : 0;
     const weakTxt = __newWeakList.length
-      ? '<div class="quiz-target"><button class="ghost" style="flex:0 0 auto;font-size:11px">薄弱知识点</button><span style="line-height:1.9;align-self:center">' +
-        __newWeakList.map(w => '<span class="pill weak">' + escapeHtml(w) + '</span>').join('') + '</span></div>'
+      ? '<div class="quiz-target" style="flex-wrap:wrap"><span style="font-size:11px;color:var(--muted);flex:0 0 100%;margin-bottom:4px">答错的知识点已自动记为薄弱点，点击任一即可「举一反三」巩固：</span><span style="line-height:2">' +
+        __newWeakList.map(w => '<span class="pill weak" data-vpt="' + escapeHtml(w) + '" style="cursor:pointer" title="针对此知识点再出变式题">' + escapeHtml(w) + ' ↗</span>').join(' ') + '</span></div>'
       : '';
     box.innerHTML =
       '<div class="quiz-card">' +

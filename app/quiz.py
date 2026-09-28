@@ -5,6 +5,7 @@
 """
 import json
 import random
+import re
 
 from . import llm_chat
 from .prompts import truncate
@@ -23,6 +24,35 @@ def _node_brief(graph: dict) -> str:
         f"- {n.get('name')}（{n.get('category', '')}）：{n.get('definition') or '暂无定义'}"
         for n in nodes[:40]
     )
+
+
+def _align_points(graph: dict, questions: list) -> list:
+    """把每题 point 校正为图谱中的真实节点名。
+
+    大模型可能把 point 写成变体（如“深度学习（概念）”），与图谱节点名“深度学习”不一致，
+    会影响薄弱点归并与举一反三。这里把 point 对齐到真实节点名，无法对齐则留空。
+    """
+    names = [n.get("name") for n in (graph.get("nodes") or []) if n.get("name")]
+    if not names:
+        return questions
+    strip = lambda s: re.sub(r"[（(【].*?[)】)]", "", s or "").strip()
+    by_strip = {}
+    for n in names:
+        by_strip.setdefault(strip(n), n)
+    for it in questions:
+        p = str(it.get("point") or "").strip()
+        if not p:
+            continue
+        if p in names:
+            continue
+        hit = by_strip.get(p) or by_strip.get(strip(p))
+        if hit:
+            it["point"] = hit
+            continue
+        q = str(it.get("q") or "")
+        cand = next((n for n in names if n and n in q), None)
+        it["point"] = cand or ""
+    return questions
 
 
 def _parse_json_list(text: str):
@@ -149,10 +179,76 @@ def generate_quiz(graph: dict, n: int = 5, requirement: str = ""):
         if llm_chat.supported().get("deepseek") or llm_chat.supported().get("doubao"):
             qs = _llm_quiz(graph, n, requirement)
             mode = "llm" if qs else "mock"
+            if qs:
+                qs = _align_points(graph, qs)
     except Exception:
         qs = None
     if not qs:
         qs = _mock_quiz(graph, n)
     if qs and len(qs) > n:
+        qs = qs[:n]
+    return {"questions": qs, "mode": mode}
+
+
+def generate_variant(graph: dict, point: str, n: int = 3):
+    """答错后「举一反三」：紧扣某个薄弱知识点再出同类变式题。"""
+    n = max(1, min(int(n or 3), 8))
+    if not point:
+        return generate_quiz(graph, n)
+    # 确认知识点真实存在于图谱，避免无效出题
+    nodes = graph.get("nodes") or []
+    real = next((x for x in nodes if x.get("name") == point), None)
+    if not real:
+        return generate_quiz(graph, n)
+    mode = "mock"
+    qs = None
+    try:
+        if llm_chat.supported().get("deepseek") or llm_chat.supported().get("doubao"):
+            brief = _node_brief(graph)
+            user = (
+                f"课程知识点（重点：{point}）：\n{brief or '（课程暂无知识点）'}\n\n"
+                f"请围绕知识点「{point}」的变化应用、易错辨析、概念延伸出 {n} 道"
+                "变式单选题，尽量从不同角度考察同一个点，帮助复习巩固。"
+                "每题 point 字段必须填「" + point + "」。"
+            )
+            try:
+                text, _p = llm_chat.chat(
+                    [{"role": "system", "content": _SYSTEM},
+                     {"role": "user", "content": truncate(user, 4000)}],
+                    provider=["deepseek", "doubao"], temperature=0.6,
+                )
+            except Exception:
+                text = None
+            if text:
+                qs = _parse_json_list(text)
+                if qs:
+                    for it in qs:
+                        it["point"] = point
+                    mode = "llm"
+    except Exception:
+        qs = None
+    if not qs:
+        # 本地变式：围绕该知识点的定义/辨析措辞换新
+        items = []
+        base = [real.get("definition") or f"「{point}」是课程知识点。"]
+        for i in range(n):
+            ring = "判断正误" if i % 2 == 0 else "选择最准确的说法"
+            correct = base[0]
+            others = [x.get("definition") for x in nodes
+                      if x.get("definition") and x.get("definition") != correct][:3]
+            opts = [correct] + others
+            while len(opts) < 4:
+                opts.append(f"与「{point}」无关或自相矛盾的说法（变式{i}）")
+            opts = opts[:4]
+            random.shuffle(opts)
+            items.append({
+                "q": f"（举一反三 · 第{i+1}题）关于「{point}」，{ring}？",
+                "options": opts,
+                "answer": opts.index(correct),
+                "explain": f"复习要点：{correct} 这仍是围绕「{point}」的知识点。",
+                "point": point,
+            })
+        qs = items
+    if len(qs) > n:
         qs = qs[:n]
     return {"questions": qs, "mode": mode}

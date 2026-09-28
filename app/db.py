@@ -85,7 +85,12 @@ def _init_db() -> None:
         CREATE TABLE IF NOT EXISTS homework (
             course_id TEXT PRIMARY KEY, requirement TEXT NOT NULL DEFAULT '',
             count INTEGER NOT NULL DEFAULT 5, teacher_name TEXT NOT NULL DEFAULT '',
-            updated_at TEXT NOT NULL);"""
+            updated_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS quiz_records (
+            id SERIAL PRIMARY KEY, username TEXT NOT NULL, course_id TEXT NOT NULL,
+            total INTEGER NOT NULL DEFAULT 0, correct INTEGER NOT NULL DEFAULT 0,
+            pct INTEGER NOT NULL DEFAULT 0, wrong_points TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL);"""
         with _lock, backend_conn() as c:
             c.execute(ddl)
         return
@@ -108,6 +113,11 @@ def _init_db() -> None:
                   "course_id TEXT PRIMARY KEY, requirement TEXT NOT NULL DEFAULT '', "
                   "count INTEGER NOT NULL DEFAULT 5, teacher_name TEXT NOT NULL DEFAULT '', "
                   "updated_at TEXT NOT NULL)")
+        c.execute("CREATE TABLE IF NOT EXISTS quiz_records ("
+                  "id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL, "
+                  "course_id TEXT NOT NULL, total INTEGER NOT NULL DEFAULT 0, "
+                  "correct INTEGER NOT NULL DEFAULT 0, pct INTEGER NOT NULL DEFAULT 0, "
+                  "wrong_points TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL)")
 
 
 _init_db()
@@ -323,3 +333,59 @@ def get_homework(course_id: str) -> Optional[Dict]:
 def clear_homework(course_id: str) -> None:
     with _lock, backend_conn() as c:
         c.execute(placehint("DELETE FROM homework WHERE course_id=%s"), (course_id,))
+
+
+# ---------- 学生答题记录 / 学情 ----------
+
+def add_quiz_record(username: str, course_id: str, total: int, correct: int,
+                    wrong_points: list) -> int:
+    """保存一次课后习题作答，wrong_points 为答错的知识点名称列表。"""
+    pct = round(correct * 100 / total) if total else 0
+    insert = ("INSERT INTO quiz_records(username, course_id, total, correct, pct, "
+              "wrong_points, created_at) VALUES(%s,%s,%s,%s,%s,%s,%s)")
+    if IS_POSTGRES:
+        with _lock, backend_conn() as c:
+            row = c.execute(placehint(insert + " RETURNING id"),
+                            (username, course_id, int(total), int(correct), pct,
+                             json.dumps(wrong_points, ensure_ascii=False), _ts())).fetchone()
+            return int(row["id"])
+    with _lock, backend_conn() as c:
+        cur = c.execute(placehint(insert),
+                        (username, course_id, int(total), int(correct), pct,
+                         json.dumps(wrong_points, ensure_ascii=False), _ts()))
+        return int(cur.lastrowid)
+
+
+def list_quiz_records(course_id: Optional[str] = None,
+                      username: Optional[str] = None) -> list:
+    """返回答题记录（新的在前）；可按课程或学生过滤。"""
+    sql = ("SELECT id, username, course_id, total, correct, pct, wrong_points, created_at "
+           "FROM quiz_records")
+    conds, params = [], []
+    if course_id:
+        conds.append("course_id=%s"); params.append(course_id)
+    if username:
+        conds.append("username=%s"); params.append(username)
+    if conds:
+        sql += " WHERE " + " AND ".join(conds)
+    sql += " ORDER BY created_at DESC, id DESC"
+    with _lock, backend_conn() as c:
+        rows = c.execute(placehint(sql), tuple(params)).fetchall()
+    return [{
+        "id": r["id"], "username": r["username"], "course_id": r["course_id"],
+        "total": r["total"], "correct": r["correct"], "pct": r["pct"],
+        "wrong_points": json.loads(r["wrong_points"] or "[]"),
+        "created_at": r["created_at"],
+    } for r in rows]
+
+
+def student_quiz_avg(username: str) -> Dict:
+    """学生在某课程的整体答题聚合（供个人学习报告）。"""
+    with _lock, backend_conn() as c:
+        row = c.execute(placehint(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(total),0) AS total, "
+            "COALESCE(SUM(correct),0) AS correct, COALESCE(AVG(pct),0) AS avgpct "
+            "FROM quiz_records WHERE username=%s"), (username,)).fetchone()
+    return {"records": int(row["n"] or 0), "total": int(row["total"] or 0),
+            "correct": int(row["correct"] or 0),
+            "avg_pct": round(float(row["avgpct"] or 0))}
