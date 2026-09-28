@@ -346,7 +346,7 @@ def recommend(course_id: str, body: RecommendRequest, _: dict = Depends(require_
     graph = graph_store.get_store().get_graph(course_id)
     if not graph:
         raise HTTPException(404, f"未找到课程：{course_id}")
-    return {"recommendations": pathfinder.recommend(graph, body.mastered, body.top_k)}
+    return {"recommendations": pathfinder.recommend(graph, body.mastered, body.weak, body.top_k)}
 
 
 # ---------- 智能问答（RAG 升级） ----------

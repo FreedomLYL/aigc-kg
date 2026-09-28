@@ -101,6 +101,25 @@
   .opt.wrong{border-color:#f87171;background:rgba(248,113,113,.13)}
   .opt.dim{opacity:.4}
   .quiz-explain{font-size:12px;line-height:1.6;margin:8px 0 4px;padding:8px 10px;border-radius:8px;background:rgba(94,234,192,.07);border-left:3px solid var(--acc);color:var(--text2)}
+  .qring{width:58px;height:58px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:0 0 auto;position:relative}
+  .qring-in{width:46px;height:46px;border-radius:50%;background:#0a120f;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:var(--acc)}
+  .quiz-target{display:flex;gap:8px;margin-top:10px;align-items:flex-start;padding-top:9px;border-top:1px dashed rgba(94,234,192,.22)}
+  .pill.weak{background:rgba(248,113,113,.14);color:#ffd6d6;border-color:rgba(248,113,113,.42)}
+  .tag.weak{background:rgba(248,113,113,.16);color:#ffd6d6;border:1px solid rgba(248,113,113,.42)}
+  .rec-card{background:linear-gradient(135deg,rgba(47,212,160,.10),rgba(47,212,160,.03));border:1px solid rgba(94,234,192,.22);border-radius:12px;padding:10px 11px;margin-top:7px}
+  .rec-card.weak{background:linear-gradient(135deg,rgba(248,113,113,.16),rgba(248,113,113,.05));border-color:rgba(248,113,113,.42);
+    box-shadow:0 0 0 1px rgba(248,113,113,.22) inset}
+  .rec-card .rc-top{display:flex;align-items:center;gap:7px}
+  .rec-card .rc-no{flex:0 0 auto;width:20px;height:20px;border-radius:6px;background:var(--acc);color:#06231a;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}
+  .rec-card.weak .rc-no{background:var(--danger)}
+  .rec-card .rc-name{font-size:13px;font-weight:700;color:var(--txt)}
+  .rec-card .rc-meta{display:flex;gap:8px;margin:5px 0 4px}
+  .rec-card .rc-kind{font-size:10.5px;color:var(--acc2);background:#2a2410;border-radius:5px;padding:1px 6px}
+  .rec-card .rc-core{font-size:10.5px;color:var(--muted);background:#1d332b;border-radius:5px;padding:1px 6px}
+  .rec-card .rc-def{font-size:12px;color:var(--muted);line-height:1.6}
+  .side section>h2{position:relative;padding-left:11px}
+  .side section>h2::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
+    width:3px;height:14px;border-radius:3px;background:linear-gradient(180deg,var(--acc),var(--acc2))}
   #list{margin-top:4px}
   .empty{color:var(--muted);font-size:13px}
   .edit-panel{display:none}
@@ -352,6 +371,7 @@
           <button id="btnClearMaster" class="ghost">清空掌握</button>
           <span class="count" id="masterCount">已掌握 0</span>
         </div>
+        <div id="masterGauge" class="card" style="display:none;margin-bottom:6px;padding:10px" ></div>
         <div id="checkWrap" class="card"><div class="h">点击标记已掌握知识点</div><div id="list"></div></div>
         <button id="btnRec" style="width:100%;margin-top:6px">推荐下一步学习</button>
         <div id="recChips" style="margin-top:6px"></div>
@@ -1265,18 +1285,54 @@ document.getElementById('btnExportChat').onclick = () => {
 };
 
 // --- 路径推荐 ---
-document.getElementById('btnRec').onclick = async () => {
+function renderMasterGauge() {
+  const g = document.getElementById('masterGauge');
+  const nodeNames = NODES.map(n => n.name) || [];
+  if (!g || !nodeNames.length) return;
+  const mastered = new Set(window.__mastered || []);
+  const weak = new Set(window.__weak || []);
+  const m = nodeNames.filter(n => mastered.has(n)).length;
+  const wk = nodeNames.filter(n => !mastered.has(n) && weak.has(n)).length;
+  const rest = nodeNames.length - m - wk;
+  const tot = nodeNames.length || 1;
+  const bar = '<div style="display:flex;width:100%;height:9px;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.08)">' +
+    '<span style="width:' + (m * 100 / tot) + '%;background:var(--good)"></span>' +
+    '<span style="width:' + (wk * 100 / tot) + '%;background:var(--danger)"></span>' +
+    '<span style="flex:1;background:rgba(255,255,255,.10)"></span></div>';
+  g.style.display = window.__recExpanded ? '' : 'none';
+  g.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px"><b style="font-size:12px">课程掌握度</b>' +
+    '<span style="font-size:11px;color:var(--muted)">' + m + ' 掌握 · ' + wk + ' 薄弱 · ' + rest + ' 未学</span></div>' + bar +
+    '<div style="display:flex;gap:12px;margin-top:7px;font-size:11px;color:var(--muted)">' +
+    '<span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--good);margin-right:4px"></i>已掌握</span>' +
+    '<span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--danger);margin-right:4px"></i>薄弱(答题)</span>' +
+    '<span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:rgba(255,255,255,.18);margin-right:4px"></i>未学</span></div>';
+}
+async function runRec() {
+  if (window.__recExpanded) renderMasterGauge();
   currentCourse = document.getElementById('course').value.trim() || '默认课程';
   const mastered = [...(window.__mastered || [])];
+  const weak = [...(window.__weak || [])];
   try {
     const d = await apiCall('/api/recommend/' + encodeURIComponent(currentCourse), 'POST',
-      { mastered, top_k: 5 });
+      { mastered, weak, top_k: 5 });
     document.getElementById('recChips').innerHTML =
       d.recommendations.length
-        ? '<div class="h">建议下一步学习（已按优先级排序）</div>' + d.recommendations.map((r, i) =>
-            '<div class="card" style="margin-top:6px"><b style="color:var(--acc)">' + (i + 1) + '. ' + escapeHtml(r.name) + '</b><span class="tag">' + escapeHtml(r.kind) + '</span><pre>' + escapeHtml(r.definition || '') + '</pre></div>').join('')
+        ? '<div class="h">建议下一步学习（薄弱点优先，已按需排序）</div>' + d.recommendations.map((r, i) =>
+            '<div class="rec-card' + (r.weak ? ' weak' : '') + '">' +
+            '<div class="rc-top"><b class="rc-no">' + (i + 1) + '</b><span class="rc-name">' + escapeHtml(r.name) +
+            (r.weak ? ' <span class="tag weak">薄弱 · 需巩固</span>' : '') + '</span></div>' +
+            '<div class="rc-meta"><span class="rc-kind">' + escapeHtml(r.kind || '知识点') + '</span>' +
+            (r.in_degree ? '<span class="rc-core">核心度 ×' + r.in_degree + '</span>' : '') + '</div>' +
+            '<div class="rc-def">' + escapeHtml(r.definition || '暂无定义') + '</div></div>').join('')
         : '<span class="empty">暂无推荐</span>';
   } catch(e) { toast('推荐失败：' + e.message, true); }
+}
+document.getElementById('btnRec').onclick = () => {
+  if (window.__recExpanded === undefined) window.__recExpanded = true;
+  else window.__recExpanded = !window.__recExpanded;
+  renderMasterGauge();
+  runRec();
 };
 
 function copyText(text, tip) {
@@ -1610,6 +1666,7 @@ window.copyBlock = function(id) {
 
 // ================= 课后习题（学生作答 / 教师布置） =================
 let __quiz = [], __quizIdx = 0, __quizScore = 0, __quizAnswered = false;
+let __newMaster = 0, __newWeakList = [];
 function clampN(v) { v = parseInt(v, 10); if (isNaN(v) || v < 1) return 5; return Math.min(v, 50); }
 function setHwCount(n) { const el = document.getElementById('hwCount'); if (el) el.value = n; }
 function setQuizCount(n) { const el = document.getElementById('quizCount'); if (el) el.value = n; }
@@ -1641,6 +1698,7 @@ function loadQuiz() {
     if (!qs.length) { box.innerHTML = '<span class="empty">暂未生成题目，请先确保该课程有知识点。</span>'; return; }
     showHomeworkReq(r);
     __quiz = qs; __quizIdx = 0; __quizScore = 0; __quizAnswered = false;
+    __newMaster = 0; __newWeakList = [];
     renderQuiz();
   }).catch(e => {
     box.innerHTML = '<span class="empty">出题失败：' + escapeHtml(e.message || e) + '</span>';
@@ -1650,11 +1708,22 @@ function renderQuiz() {
   const box = document.getElementById('quizBox');
   if (__quizIdx >= __quiz.length) {
     const pct = __quiz.length ? Math.round((__quizScore / __quiz.length) * 100) : 0;
+    const weakTxt = __newWeakList.length
+      ? '<div class="quiz-target"><button class="ghost" style="flex:0 0 auto;font-size:11px">薄弱知识点</button><span style="line-height:1.9;align-self:center">' +
+        __newWeakList.map(w => '<span class="pill weak">' + escapeHtml(w) + '</span>').join('') + '</span></div>'
+      : '';
     box.innerHTML =
-      '<div class="quiz-card"><div class="lq">🎉 本次作答完成</div>' +
-      '<div style="font-size:13px;color:var(--text2);margin-top:4px">得分：' + __quizScore + ' / ' + __quiz.length +
-      '（正确率 ' + pct + '%）</div></div>' +
-      '<button class="ghost" style="width:100%;margin-top:6px" onclick="loadQuiz()">再练一次</button>';
+      '<div class="quiz-card">' +
+      '<div style="display:flex;align-items:center;gap:14px">' +
+      '<div class="qring" style="background:conic-gradient(var(--acc) ' + (pct * 3.6) + 'deg, rgba(255,255,255,.08) 0)"><div class="qring-in">' + pct + '%</div></div>' +
+      '<div><div style="font-weight:700;font-size:14px">本次作答完成</div>' +
+      '<div style="font-size:12px;color:var(--muted);margin-top:3px">得分 ' + __quizScore + ' / ' + __quiz.length +
+      ' · 新增掌握 <b style="color:var(--good)">' + __newMaster + '</b>' +
+      ' · 薄弱 <b style="color:var(--danger)">' + __newWeakList.length + '</b></div></div></div>' +
+      (weakTxt || '') +
+      '</div>' +
+      '<button style="width:100%;margin-top:6px" onclick="goLearnPath()">查看据此更新的学习路径</button>' +
+      '<button class="ghost" style="width:100%;margin-top:6px" onclick="loadQuiz()">再练一组</button>';
     return;
   }
   const it = __quiz[__quizIdx];
@@ -1673,6 +1742,18 @@ function answerQuiz(btn, picked) {
   const it = __quiz[__quizIdx];
   const correct = (it.answer === picked);
   if (correct) __quizScore++;
+  // 自适应学习：按本题知识点更新掌握/薄弱状态，同步到学习路径推荐
+  const pt = String(it.point || '').trim();
+  if (pt) {
+    if (correct) {
+      window.__mastered = window.__mastered || new Set();
+      if (!window.__mastered.has(pt)) { window.__mastered.add(pt); __newMaster++; }
+    } else {
+      window.__weak = window.__weak || new Set();
+      window.__weak.add(pt);
+      if (!__newWeakList.includes(pt)) __newWeakList.push(pt);
+    }
+  }
   const all = btn.parentElement.querySelectorAll('.opt');
   all.forEach(el => { el.classList.add('dim'); el.disabled = true; });
   all[it.answer].classList.add('correct');
@@ -1684,6 +1765,15 @@ function answerQuiz(btn, picked) {
     (__quizIdx + 1 < __quiz.length ? '下一题' : '查看成绩') + '</button>';
 }
 function nextQuiz() { __quizIdx++; renderQuiz(); }
+function goLearnPath() {
+  const card = document.getElementById('secRec'); if (!card) return;
+  if (typeof renderMasterList === 'function') renderMasterList();
+  const item = document.querySelector('#sidenav .nav-item[data-sec="secRec"]');
+  if (item) item.click();
+  if (card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  toast('已完成答题，学习路径已按薄弱点更新');
+  setTimeout(() => { try { runRec(); } catch (e) {} }, 350);
+}
 
 // ---- 教师端：布置课后习题 ----
 function refreshHwCourses() {

@@ -33,6 +33,7 @@ class RequestChat(BaseModel):
 
 class RecommendRequest(BaseModel):
     mastered: List[str] = Field(default_factory=list, description="已掌握的知识点集合")
+    weak: List[str] = Field(default_factory=list, description="答题答错的薄弱知识点（优先推荐复习）")
     top_k: int = Field(default=5, ge=1, le=20)
 
 

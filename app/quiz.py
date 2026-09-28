@@ -12,7 +12,7 @@ from .prompts import truncate
 _SYSTEM = (
     "你是高校课程助教，为学生基于课程知识图谱生成单选题。"
     "严格按照要求输出，每条题目是一个 JSON 对象，字段为："
-    '{"q": 题干, "options": [四个选项字符串], "answer": 正确选项的下标(0~3，与options对应), "explain": 解析}。'
+    '{"q": 题干, "options": [四个选项字符串], "answer": 正确选项的下标(0~3，与options对应), "explain": 解析, "point": 本题考察的知识点名称(必须来自给出的课程知识点列表，精确匹配一个名称)}。'
     "只能有 4 个选项，且仅一个正确。除 JSON 数组外不要输出任何其他文字、标题或代码块说明。"
 )
 
@@ -65,6 +65,7 @@ def _parse_json_list(text: str):
             "options": [str(o).strip() for o in options],
             "answer": int(ans),
             "explain": (item.get("explain") or "").strip() or "（该题未提供解析）",
+            "point": (item.get("point") or "").strip(),
         })
     return out or None
 
@@ -135,6 +136,7 @@ def _mock_quiz(graph: dict, n: int):
             "options": opts,
             "answer": ans,
             "explain": f"正确理解：{correct} 它属于课程中的「{cat}」类知识点。",
+            "point": name,
         })
     return items
 
