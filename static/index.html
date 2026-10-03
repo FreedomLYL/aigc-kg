@@ -280,7 +280,7 @@
     </section>
 
     <!-- 课程管理 -->
-    <section>
+    <section id="secCourses">
       <h2>课程管理</h2>
       <div class="row">
         <input type="text" id="course" value="机器学习" placeholder="课程名称">
@@ -403,18 +403,18 @@
         <div id="aiOut" class="card" style="margin-top:6px"><span class="empty">点选上方任一 AI 工具，输入教学任务，即可在此页面直接生成内容。</span></div>
       </section>
 
-      <section>
+      <section id="secAnalyze">
         <h2>核心知识点分析</h2>
         <button id="btnAnalyze" class="ghost" style="width:100%">运行结构分析</button>
         <div id="analyzeOut" class="card" style="margin-top:6px"><span class="empty">统计节点出入度、TOP 核心知识点并检测孤立节点。</span></div>
       </section>
 
-      <section>
+      <section id="secSearch">
         <h2>知识点搜索 / 定位</h2>
         <div class="row"><input type="text" id="searchNode" placeholder="输入知识点名称，在图谱中高亮定位"><button id="btnSearch" class="ghost">定位</button></div>
       </section>
 
-      <section>
+      <section id="secExport">
         <h2>导出与统计</h2>
         <div class="row">
           <button id="btnExportJson" class="ghost" style="flex:1">导出图谱 JSON</button>
@@ -909,11 +909,13 @@ window.doLogout = doLogout; window.switchAuthTab = switchAuthTab;
 function hideTourHome() { const t = document.getElementById('tourHome'); if (t) t.style.display = 'none'; }
 function startTour() {
   hideTourHome();
+  showView('secTour');
   const el = document.getElementById('course');
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 function startTourChoose() {
   hideTourHome();
+  showView('secTour');
   const el = document.getElementById('courseList');
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -939,6 +941,39 @@ const NAV_ITEMS = [
   { id: 'nav_report', label: '学习报告', icon: '▦', sec: 'secReport', roles: ['student'] },
   { id: 'nav_ai',     label: 'AI助手',  icon: '◉', sec: 'secAI', kind: 'ai' },
 ];
+// --- 右侧视图切换：点击导览只显示对应面板，其余隐藏（避免所有功能平铺） ---
+const SIDE_PANELS = [
+  'secTour', 'secCourses', 'buildSec', 'editSec',
+  'secAIStudent', 'secQuiz', 'secReport', 'secRec',
+  'secAITeacher', 'secAnalyze', 'secSearch', 'secExport',
+  'secHwAssign', 'secEduStats', 'secTeachPlan', 'secFileLib',
+];
+let currentView = 'secTour';
+function viewGroup(role, secId) {
+  const T = role === 'teacher';
+  switch (secId) {
+    case 'secTour':   return T ? ['secTour', 'secCourses', 'buildSec', 'editSec'] : ['secTour', 'secCourses'];
+    case 'secChart':  return T ? ['secAnalyze', 'secSearch', 'secExport'] : [];
+    case 'secFileLib': return ['secFileLib'];
+    case 'secHwAssign': return ['secHwAssign'];
+    case 'secEduStats': return ['secEduStats'];
+    case 'secTeachPlan': return ['secTeachPlan'];
+    case 'secRec':    return ['secRec'];
+    case 'secQuiz':   return ['secQuiz'];
+    case 'secReport': return ['secReport'];
+    case 'secAI':     return T ? ['secAITeacher'] : ['secAIStudent'];
+    default: return [];
+  }
+}
+function showView(secId) {
+  if (editMode) return;
+  currentView = secId || 'secTour';
+  const show = viewGroup(CURRENT_ROLE.role, currentView);
+  SIDE_PANELS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = show.includes(id) ? '' : 'none';
+  });
+}
 function buildNav(role) {
   const nav = document.getElementById('sidenav');
   const dc = document.getElementById('btnDelCourse');
@@ -955,6 +990,7 @@ function buildNav(role) {
     el.onclick = () => {
       nav.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       el.classList.add('active');
+      showView(el.dataset.sec);
       if (el.dataset.kind === 'ai') {
         const frag = document.getElementById(role === 'teacher' ? 'secAITeacher' : 'secAIStudent');
         if (frag) frag.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -971,6 +1007,7 @@ function buildNav(role) {
   if (add) add.onclick = () => addCourse();
   const def = document.getElementById('nav_home');
   if (def) def.classList.add('active');
+  showView('secTour');
 }
 
 async function refreshCourseList() {
@@ -1114,6 +1151,7 @@ document.getElementById('btnEditToggle').onclick = () => {
   } else {
     exitEdit();
     if (rolePanel) rolePanel.style.display = '';
+    showView(currentView);
   }
 };
 
