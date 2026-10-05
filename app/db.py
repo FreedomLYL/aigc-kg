@@ -3,6 +3,8 @@
 - users   账号表（用户名唯一 + 角色 + 密码哈希）
 - sessions 登录会话表（token -> 用户名）
 - graphs   课程图谱表（course_id -> 图谱 JSON）
+- homework 课后习题布置表（course_id -> 教师 + 布置要求 + 题数）
+- quiz_records 学生作答记录表（学情分析的原始数据）
 
 密码用 pbkdf2_hmac 加盐哈希存储，不存明文。
 SQL 统一用 `%s` 占位符；SQLite 后端执行前替换为 `?`。时间一律由 Python 传 ISO 字符串，避免方言差异。
@@ -83,14 +85,13 @@ def _init_db() -> None:
             size BIGINT NOT NULL DEFAULT 0, text_content TEXT NOT NULL DEFAULT '',
             uploaded_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS homework (
-            course_id TEXT PRIMARY KEY, requirement TEXT NOT NULL DEFAULT '',
-            count INTEGER NOT NULL DEFAULT 5, teacher_name TEXT NOT NULL DEFAULT '',
+            course_id TEXT PRIMARY KEY, teacher_name TEXT NOT NULL,
+            requirement TEXT NOT NULL DEFAULT '', n INTEGER NOT NULL DEFAULT 5,
             updated_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS quiz_records (
             id SERIAL PRIMARY KEY, username TEXT NOT NULL, course_id TEXT NOT NULL,
             total INTEGER NOT NULL DEFAULT 0, correct INTEGER NOT NULL DEFAULT 0,
-            pct INTEGER NOT NULL DEFAULT 0, wrong_points TEXT NOT NULL DEFAULT '[]',
-            created_at TEXT NOT NULL);"""
+            wrong_points TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL);"""
         with _lock, backend_conn() as c:
             c.execute(ddl)
         return
@@ -110,13 +111,13 @@ def _init_db() -> None:
                   "size INTEGER NOT NULL DEFAULT 0, text_content TEXT NOT NULL DEFAULT '', "
                   "uploaded_at TEXT NOT NULL)")
         c.execute("CREATE TABLE IF NOT EXISTS homework ("
-                  "course_id TEXT PRIMARY KEY, requirement TEXT NOT NULL DEFAULT '', "
-                  "count INTEGER NOT NULL DEFAULT 5, teacher_name TEXT NOT NULL DEFAULT '', "
+                  "course_id TEXT PRIMARY KEY, teacher_name TEXT NOT NULL, "
+                  "requirement TEXT NOT NULL DEFAULT '', n INTEGER NOT NULL DEFAULT 5, "
                   "updated_at TEXT NOT NULL)")
         c.execute("CREATE TABLE IF NOT EXISTS quiz_records ("
                   "id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL, "
                   "course_id TEXT NOT NULL, total INTEGER NOT NULL DEFAULT 0, "
-                  "correct INTEGER NOT NULL DEFAULT 0, pct INTEGER NOT NULL DEFAULT 0, "
+                  "correct INTEGER NOT NULL DEFAULT 0, "
                   "wrong_points TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL)")
 
 
@@ -301,33 +302,25 @@ def delete_course(course_id: str) -> None:
     with _lock, backend_conn() as c:
         c.execute(placehint("DELETE FROM graphs WHERE course_id=%s"), (course_id,))
         c.execute(placehint("DELETE FROM files WHERE course_id=%s"), (course_id,))
+        c.execute(placehint("DELETE FROM homework WHERE course_id=%s"), (course_id,))
+        c.execute(placehint("DELETE FROM quiz_records WHERE course_id=%s"), (course_id,))
 
 
-# ---------- 课后习题布置 ----------
+# ---------- 课后习题布置（教师） ----------
 
-def upsert_homework(course_id: str, requirement: str, count: int, teacher_name: str) -> Dict:
+def save_homework(course_id: str, teacher_name: str, requirement: str, n: int) -> dict:
+    """保存/更新某课程的课后习题布置要求（每门课仅保留最新一笔）。"""
     with _lock, backend_conn() as c:
         c.execute(placehint(
-            "INSERT INTO homework(course_id, requirement, count, teacher_name, updated_at) "
+            "INSERT INTO homework(course_id, teacher_name, requirement, n, updated_at) "
             "VALUES(%s,%s,%s,%s,%s) ON CONFLICT(course_id) DO UPDATE SET "
-            "requirement=excluded.requirement, count=excluded.count, "
-            "teacher_name=excluded.teacher_name, updated_at=excluded.updated_at"),
-            (course_id, requirement or "", int(count), teacher_name, _ts()))
-    return {"course_id": course_id, "requirement": requirement or "",
-            "count": int(count), "teacher_name": teacher_name, "assigned": True,
-            "updated_at": _ts()}
-
-
-def get_homework(course_id: str) -> Optional[Dict]:
-    with _lock, backend_conn() as c:
-        row = c.execute(placehint(
-            "SELECT course_id, requirement, count, teacher_name, updated_at "
-            "FROM homework WHERE course_id=%s"), (course_id,)).fetchone()
-    if not row:
-        return None
-    return {"course_id": row["course_id"], "requirement": row["requirement"] or "",
-            "count": int(row["count"] or 5), "teacher_name": row["teacher_name"] or "",
-            "assigned": True, "updated_at": row["updated_at"]}
+            "teacher_name=excluded.teacher_name, requirement=excluded.requirement, "
+            "n=excluded.n, updated_at=excluded.updated_at"),
+            (course_id, teacher_name, requirement, int(n), _ts()))
+    return {
+        "course_id": course_id, "teacher_name": teacher_name,
+        "requirement": requirement, "n": int(n), "updated_at": _ts(),
+    }
 
 
 def clear_homework(course_id: str) -> None:
@@ -335,57 +328,59 @@ def clear_homework(course_id: str) -> None:
         c.execute(placehint("DELETE FROM homework WHERE course_id=%s"), (course_id,))
 
 
-# ---------- 学生答题记录 / 学情 ----------
+def get_homework(course_id: str) -> Optional[Dict]:
+    with _lock, backend_conn() as c:
+        row = c.execute(placehint(
+            "SELECT course_id, teacher_name, requirement, n, updated_at "
+            "FROM homework WHERE course_id=%s"), (course_id,)).fetchone()
+    if not row:
+        return None
+    return {
+        "course_id": row["course_id"], "teacher_name": row["teacher_name"],
+        "requirement": row["requirement"], "n": row["n"], "updated_at": row["updated_at"],
+    }
+
+
+# ---------- 学生作答记录（学情分析数据源） ----------
 
 def add_quiz_record(username: str, course_id: str, total: int, correct: int,
                     wrong_points: list) -> int:
-    """保存一次课后习题作答，wrong_points 为答错的知识点名称列表。"""
-    pct = round(correct * 100 / total) if total else 0
-    insert = ("INSERT INTO quiz_records(username, course_id, total, correct, pct, "
-              "wrong_points, created_at) VALUES(%s,%s,%s,%s,%s,%s,%s)")
+    insert = ("INSERT INTO quiz_records(username, course_id, total, correct, "
+              "wrong_points, created_at) VALUES(%s,%s,%s,%s,%s,%s)")
     if IS_POSTGRES:
         with _lock, backend_conn() as c:
             row = c.execute(placehint(insert + " RETURNING id"),
-                            (username, course_id, int(total), int(correct), pct,
+                            (username, course_id, int(total), int(correct),
                              json.dumps(wrong_points, ensure_ascii=False), _ts())).fetchone()
             return int(row["id"])
     with _lock, backend_conn() as c:
         cur = c.execute(placehint(insert),
-                        (username, course_id, int(total), int(correct), pct,
+                        (username, course_id, int(total), int(correct),
                          json.dumps(wrong_points, ensure_ascii=False), _ts()))
         return int(cur.lastrowid)
 
 
-def list_quiz_records(course_id: Optional[str] = None,
-                      username: Optional[str] = None) -> list:
-    """返回答题记录（新的在前）；可按课程或学生过滤。"""
-    sql = ("SELECT id, username, course_id, total, correct, pct, wrong_points, created_at "
-           "FROM quiz_records")
-    conds, params = [], []
-    if course_id:
-        conds.append("course_id=%s"); params.append(course_id)
-    if username:
-        conds.append("username=%s"); params.append(username)
-    if conds:
-        sql += " WHERE " + " AND ".join(conds)
-    sql += " ORDER BY created_at DESC, id DESC"
+def list_quiz_records(course_id: str) -> list:
     with _lock, backend_conn() as c:
-        rows = c.execute(placehint(sql), tuple(params)).fetchall()
-    return [{
-        "id": r["id"], "username": r["username"], "course_id": r["course_id"],
-        "total": r["total"], "correct": r["correct"], "pct": r["pct"],
-        "wrong_points": json.loads(r["wrong_points"] or "[]"),
-        "created_at": r["created_at"],
-    } for r in rows]
+        rows = c.execute(placehint(
+            "SELECT username, total, correct, wrong_points, created_at "
+            "FROM quiz_records WHERE course_id=%s ORDER BY created_at"),
+            (course_id,)).fetchall()
+    out = []
+    for r in rows:
+        try:
+            wp = json.loads(r["wrong_points"] or "[]")
+        except Exception:
+            wp = []
+        out.append({
+            "username": r["username"], "total": r["total"], "correct": r["correct"],
+            "wrong_points": wp, "created_at": r["created_at"],
+        })
+    return out
 
 
-def student_quiz_avg(username: str) -> Dict:
-    """学生在某课程的整体答题聚合（供个人学习报告）。"""
+def list_all_quiz_courses() -> list:
     with _lock, backend_conn() as c:
-        row = c.execute(placehint(
-            "SELECT COUNT(*) AS n, COALESCE(SUM(total),0) AS total, "
-            "COALESCE(SUM(correct),0) AS correct, COALESCE(AVG(pct),0) AS avgpct "
-            "FROM quiz_records WHERE username=%s"), (username,)).fetchone()
-    return {"records": int(row["n"] or 0), "total": int(row["total"] or 0),
-            "correct": int(row["correct"] or 0),
-            "avg_pct": round(float(row["avgpct"] or 0))}
+        rows = c.execute(
+            "SELECT DISTINCT course_id FROM quiz_records ORDER BY course_id").fetchall()
+    return [r["course_id"] for r in rows]

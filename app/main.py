@@ -6,11 +6,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from typing import List
 
-from . import document_parser, llm_extractor, graph_store, pathfinder, rag_chat, db, assistant, classify, seed
+from . import document_parser, llm_extractor, graph_store, pathfinder, rag_chat, db, assistant, classify, seed, quiz_engine
 from .schemas import (
     RequestChat, RecommendRequest,
     NodeCreate, NodeUpdate, EdgeCreate, EdgeDelete,
     RegisterRequest, LoginRequest, AssistantRequest, CourseCreate, ExtractionResult,
+    HomeworkAssignRequest, HomeworkClearRequest, QuizSubmitRequest,
+    QuizVariantRequest, TeachingPlanRequest,
 )
 from .config import STATIC_DIR
 
@@ -27,6 +29,7 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 extractor = llm_extractor.build_extractor()
 chat_engine = rag_chat.build_chat_engine()
 teacher_assistant = assistant.build_assistant()
+exercise_engine = quiz_engine.build_quiz_engine()
 
 # 免费托管无持久磁盘：空库时从种子恢复演示数据（SEED_ON_START=1 且库为空才生效）
 seed.apply_seed_if_empty()
@@ -346,7 +349,7 @@ def recommend(course_id: str, body: RecommendRequest, _: dict = Depends(require_
     graph = graph_store.get_store().get_graph(course_id)
     if not graph:
         raise HTTPException(404, f"未找到课程：{course_id}")
-    return {"recommendations": pathfinder.recommend(graph, body.mastered, body.weak, body.top_k)}
+    return {"recommendations": pathfinder.recommend(graph, body.mastered, body.top_k)}
 
 
 # ---------- 智能问答（RAG 升级） ----------
@@ -358,193 +361,6 @@ def chat(course_id: str, body: RequestChat, _: dict = Depends(require_user)):
         raise HTTPException(404, f"未找到课程：{course_id}")
     history = [{"role": m.role, "content": m.content} for m in body.history]
     return chat_engine.ask(course_id, body.question, graph, history, provider=body.provider)
-
-
-@app.get("/api/homework")
-def homework_get(course_id: str, n: int = 5, requirement: str = "", _: dict = Depends(require_user)):
-    """课后习题：学生取题（自动携带教师布置要求）；教师生成预览（requirement 参数不保存）。
-
-    - 若该课程已有教师布置的要求，则优先按布置要求出题；
-    - requirement 参数用于教师「生成预览」，仅本次生效、不入库；
-    - n<=0 时不生成题目，仅返回布置状态（供教师面板展示）。
-    """
-    graph = graph_store.get_store().get_graph(course_id)
-    if not graph:
-        raise HTTPException(404, f"未找到课程：{course_id}")
-    from . import db as db_
-    from . import quiz as quiz_engine
-    hw = db_.get_homework(course_id)
-    req = requirement.strip() or (hw.get("requirement") if hw else "") or ""
-    result = {"assigned": bool(hw), "course_id": course_id,
-              "requirement": hw.get("requirement", "") if hw else "",
-              "teacher_name": hw.get("teacher_name", "") if hw else "",
-              "updated_at": hw.get("updated_at", "") if hw else "",
-              "count": hw.get("count", n) if hw else n}
-    if int(n or 0) > 0:
-        generated = quiz_engine.generate_quiz(graph, int(n), req)
-        result.update(generated)
-    return result
-
-
-@app.post("/api/homework/assign")
-def homework_assign(body: dict, user: dict = Depends(require_user)):
-    """教师布置课后习题：保存布置要求与题数，学生端立即可见。"""
-    if user["role"] != "teacher":
-        raise HTTPException(403, "只有教师可以布置课后习题")
-    course_id = str(body.get("course_id") or "").strip()
-    if not course_id:
-        raise HTTPException(400, "缺少课程")
-    graph = graph_store.get_store().get_graph(course_id)
-    if not graph:
-        raise HTTPException(404, f"未找到课程：{course_id}")
-    from . import db as db_
-    n = max(1, min(int(body.get("n") or 5), 50))
-    return db_.upsert_homework(course_id, str(body.get("requirement") or "").strip(), n, user["username"])
-
-
-@app.post("/api/homework/clear")
-def homework_clear(body: dict, user: dict = Depends(require_user)):
-    """教师撤销某课程的课后习题布置。"""
-    if user["role"] != "teacher":
-        raise HTTPException(403, "只有教师可以撤销课后习题")
-    course_id = str(body.get("course_id") or "").strip()
-    if not course_id:
-        raise HTTPException(400, "缺少课程")
-    from . import db as db_
-    db_.clear_homework(course_id)
-    return {"ok": True, "course_id": course_id}
-
-
-@app.post("/api/quiz/submit")
-def quiz_submit(body: dict, user: dict = Depends(require_user)):
-    """保存一次课后习题作答记录（含答错的知识点），用于学习报告与教师学情。"""
-    course_id = str(body.get("course_id") or "").strip()
-    if not course_id:
-        raise HTTPException(400, "缺少课程")
-    from . import db as db_
-    wrong = [w for w in (body.get("wrong_points") or []) if str(w or "").strip()]
-    try:
-        total = max(0, int(body.get("total") or 0))
-        correct = max(0, int(body.get("correct") or 0))
-    except Exception:
-        total = correct = 0
-    db_.add_quiz_record(user["username"], course_id, total, correct, wrong)
-    return {"ok": True}
-
-
-@app.post("/api/quiz/variant")
-def quiz_variant(body: dict, _: dict = Depends(require_user)):
-    """答错后「举一反三」：紧扣薄弱知识点再出同类变式题巩固。"""
-    course_id = str(body.get("course_id") or "").strip()
-    point = str(body.get("point") or "").strip()
-    if not course_id or not point:
-        raise HTTPException(400, "缺少课程或知识点")
-    graph = graph_store.get_store().get_graph(course_id)
-    if not graph:
-        raise HTTPException(404, f"未找到课程：{course_id}")
-    from . import quiz as quiz_engine
-    n = int(body.get("n") or 3)
-    return quiz_engine.generate_variant(graph, point, n)
-
-
-@app.get("/api/teacher/stats/summary")
-def teacher_stats(course_id: str, _: dict = Depends(require_teacher)):
-    """教师学情面板：某课程各知识点的错题次数与学生整体掌握情况。"""
-    graph = graph_store.get_store().get_graph(course_id)
-    if not graph:
-        raise HTTPException(404, f"未找到课程：{course_id}")
-    from . import db as db_
-    recs = db_.list_quiz_records(course_id=course_id)
-    # 按知识点聚合错题
-    point_stat: dict = {}
-    students: dict = {}
-    for r in recs:
-        st = students.setdefault(r["username"], {
-            "username": r["username"], "records": 0, "total": 0, "correct": 0,
-            "wrong": {}})
-        st["records"] += 1; st["total"] += r["total"]; st["correct"] += r["correct"]
-        for p in r.get("wrong_points") or []:
-            if not p:
-                continue
-            ps = point_stat.setdefault(p, {
-                "name": p, "wrong_count": 0, "students": set()})
-            ps["wrong_count"] += 1
-            ps["students"].add(r["username"])
-            st["wrong"][p] = st["wrong"].get(p, 0) + 1
-    # 关联图谱分类
-    kind_of = {n.get("name"): n.get("category", "知识点") for n in graph.get("nodes") or []}
-    points = [{**ps, "students": sorted(ps["students"]), "category": kind_of.get(ps["name"], "知识点")}
-              for ps in point_stat.values()]
-    points.sort(key=lambda x: -x["wrong_count"])
-    stu_list = []
-    for s in students.values():
-        s["avg_pct"] = round(s["correct"] * 100 / s["total"]) if s["total"] else 0
-        s["wrong"] = [{"name": k, "count": v} for k, v in
-                      sorted(s["wrong"].items(), key=lambda kv: -kv[1])]
-        stu_list.append(s)
-    return {
-        "course_id": course_id,
-        "summary": {"records": len(recs), "students": len(stu_list)},
-        "points": points,
-        "students": stu_list,
-    }
-
-
-@app.post("/api/teacher/teaching-plan")
-def teaching_plan(body: dict, _: dict = Depends(require_teacher)):
-    """教师端：基于当前课程图谱一键生成教学大纲/教案（AIGC 优先，本地兜底）。"""
-    course_id = str(body.get("course_id") or "").strip()
-    if not course_id:
-        raise HTTPException(400, "缺少课程")
-    graph = graph_store.get_store().get_graph(course_id)
-    if not graph:
-        raise HTTPException(404, f"未找到课程：{course_id}")
-    nodes = [n for n in (graph.get("nodes") or []) if n.get("name")]
-    cat_order = []
-    for n in nodes:
-        c = n.get("category", "知识点")
-        if c not in cat_order:
-            cat_order.append(c)
-    name_len = len(nodes)
-
-    def _local_plan():
-        from collections import OrderedDict
-        groups = OrderedDict()
-        for n in nodes:
-            groups.setdefault(n.get("category", "其他"), []).append(n)
-        lines = [f"# 《{course_id}》教学大纲（由课程知识图谱自动生成）", ""]
-        idx = 0
-        for cat, ns in groups.items():
-            idx += 1
-            lines.append(f"## 第{idx}单元 · {cat}")
-            for n in ns:
-                lines.append(f"  1. {n['name']}"
-                             + (f"：{n.get('definition')}" if n.get('definition') else ""))
-            lines.append("")
-        lines.append("## 教学建议")
-        lines.append(f"  · 本课程共识别 {name_len} 个知识点，建议按「{('、'.join(cat_order))}」的顺序组织教学。")
-        lines.append("  · 课堂中可结合知识图谱的可视化进行讲解，突出重点概念与前置关系。")
-        lines.append("  · 建议配合课后习题，对答错率高的知识点进行专项巩固。")
-        return "\n".join(lines)
-
-    mode = "local"
-    plan = _local_plan()
-    try:
-        from . import llm_chat, prompts
-        brief = "\n".join(f"- {n.get('name')}（{n.get('category')}）：{n.get('definition') or ''}"
-                          for n in nodes[:45])
-        from .prompts import truncate
-        text, _p = llm_chat.chat(
-            [{"role": "system", "content": "你是高校课程教学设计专家，为教师基于课程知识图谱生成一份结构清晰、可直接使用的 Markdown 教学大纲/教案：包含课程简介、教学目标、各单元章节（每章列出核心知识点与学时建议）、考核方式、参考方向。语气专业、条理分明，只输出 Markdown。"},
-             {"role": "user", "content":
-                 truncate(f"课程名称：{course_id}\n知识点清单：\n{brief or '（暂无）'}", 4000)}],
-            provider=["deepseek", "doubao"], temperature=0.4)
-        if text and text.strip():
-            plan = text.strip()
-            mode = "llm"
-    except Exception:
-        pass
-    return {"plan": plan, "course_id": course_id, "mode": mode, "points": name_len}
 
 
 @app.get("/api/ai/providers")
@@ -644,6 +460,85 @@ def build_graph_from_file(file_id: int, user: dict = Depends(require_teacher)):
         "relations": len(result.relations),
         "graph": graph_store.get_store().get_graph(record["course_id"]),
     }
+
+
+# ---------- 课后习题：出题 / 布置 / 撤销 / 作答 / 变式 / 学情 / 教案 ----------
+
+@app.get("/api/homework")
+def homework(course_id: str, n: int = 0, requirement: str = "",
+             _: dict = Depends(require_user)):
+    """学生端出题 & 教师端预览共用：返回该课程布置状态 + 按需生成的题目。"""
+    store = graph_store.get_store()
+    rec = db.get_homework(course_id)
+    resp = {"course_id": course_id}
+    if rec:
+        resp["assigned"] = True
+        resp["teacher_name"] = rec["teacher_name"]
+        resp["requirement"] = rec["requirement"]
+        resp["count"] = rec["n"]
+        resp["updated_at"] = rec["updated_at"]
+    else:
+        resp["assigned"] = False
+    resp["questions"] = []
+    resp["mode"] = "template"
+    graph = store.get_graph(course_id)
+    if graph and n > 0:
+        req = requirement or (rec or {}).get("requirement", "")
+        gen = exercise_engine.generate(graph, n, req)
+        resp["questions"] = gen["questions"]
+        resp["mode"] = gen["mode"]
+    return resp
+
+
+@app.post("/api/homework/assign")
+def homework_assign(body: HomeworkAssignRequest, user: dict = Depends(require_teacher)):
+    if not graph_store.get_store().get_graph(body.course_id):
+        raise HTTPException(404, f"未找到课程：{body.course_id}")
+    rec = db.save_homework(body.course_id, user["username"], body.requirement, body.n)
+    return {
+        "assigned": True,
+        "course_id": rec["course_id"],
+        "teacher_name": rec["teacher_name"],
+        "requirement": rec["requirement"],
+        "count": rec["n"],
+        "updated_at": rec["updated_at"],
+    }
+
+
+@app.post("/api/homework/clear")
+def homework_clear(body: HomeworkClearRequest, _: dict = Depends(require_teacher)):
+    db.clear_homework(body.course_id)
+    return {"assigned": False, "course_id": body.course_id}
+
+
+@app.post("/api/quiz/submit")
+def quiz_submit(body: QuizSubmitRequest, user: dict = Depends(require_user)):
+    db.add_quiz_record(user["username"], body.course_id, body.total, body.correct,
+                       list(body.wrong_points))
+    return {"ok": True}
+
+
+@app.post("/api/quiz/variant")
+def quiz_variant(body: QuizVariantRequest, _: dict = Depends(require_user)):
+    graph = graph_store.get_store().get_graph(body.course_id)
+    if not graph:
+        raise HTTPException(404, f"未找到课程：{body.course_id}")
+    return exercise_engine.variant(graph, body.point, body.n)
+
+
+@app.get("/api/teacher/stats/summary")
+def teacher_stats_summary(course_id: str, _: dict = Depends(require_teacher)):
+    """教师端学情分析：基于学生作答记录统计薄弱知识点与学生表现。"""
+    records = db.list_quiz_records(course_id)
+    return exercise_engine.stats(records)
+
+
+@app.post("/api/teacher/teaching-plan")
+def teacher_teaching_plan(body: TeachingPlanRequest, _: dict = Depends(require_teacher)):
+    graph = graph_store.get_store().get_graph(body.course_id)
+    if not graph:
+        raise HTTPException(404, f"未找到课程：{body.course_id}")
+    return exercise_engine.teaching_plan(graph)
 
 
 if __name__ == "__main__":

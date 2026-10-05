@@ -17,7 +17,12 @@
   .mode-badge{font-size:11px;border-radius:999px;padding:2px 10px;font-weight:600}
   .mode-badge.browse{background:#182c24;color:var(--acc)}
   .mode-badge.edit{background:#2a2410;color:var(--edit)}
-  .wrap{display:grid;grid-template-columns:66px 1fr 380px;gap:16px;padding:16px 24px;height:calc(100vh - 60px)}
+  .wrap{display:grid;grid-template-columns:66px 1fr 10px var(--side-w,440px);gap:16px;padding:16px 24px;height:calc(100vh - 60px)}
+  .resizer{position:relative;cursor:col-resize;user-select:none;z-index:20;border-radius:5px;transition:background .15s}
+  .resizer::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:3px;height:46px;
+    border-radius:3px;background:rgba(47,212,160,.22)}
+  .resizer:hover,.resizer.drag{background:rgba(47,212,160,.22)}
+  .resizer:hover::before,.resizer.drag::before{background:var(--acc);height:64px;transition:height .15s}
   .sidenav{display:flex;flex-direction:column;align-items:stretch;gap:5px;height:100%;
     background:rgba(20,32,25,.55);border:1px solid rgba(47,212,160,.10);border-radius:14px;
     padding:10px 6px;backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);
@@ -272,6 +277,8 @@
     </div>
   </div>
 
+  <div class="resizer" id="sideResize" title="拖动调整右侧面板宽度"></div>
+
   <div class="side">
     <!-- 课程导览（首屏首页） -->
     <section id="secTour">
@@ -398,7 +405,8 @@
       <section id="secAITeacher">
         <h2>AI 工具辅助备课 <span class="mode-badge browse" style="margin-left:6px">豆包 · DeepSeek 页面内直接使用</span></h2>
         <div id="aiToolGrid" class="tool-grid"></div>
-        <input type="text" id="aiTask" placeholder="给选中的 AI 工具布置任务，如：为「过拟合」生成 3 道测验题" style="margin-bottom:6px;margin-top:8px">
+        <textarea id="aiTask" rows="3" placeholder="给选中的 AI 工具布置任务，如：为「过拟合」生成 3 道测验题" style="margin-bottom:6px;margin-top:8px;resize:vertical;flex:none;width:100%"></textarea>
+        <div id="aiTaskSamples" class="chat-quick" style="margin-bottom:6px"></div>
         <button id="btnAiGen" style="width:100%;margin-bottom:4px">生成教学辅助内容</button>
         <div id="aiOut" class="card" style="margin-top:6px"><span class="empty">点选上方任一 AI 工具，输入教学任务，即可在此页面直接生成内容。</span></div>
       </section>
@@ -804,7 +812,7 @@ function applyRole(role) {
   document.getElementById('teacherPanel').style.display = T ? '' : 'none';
   document.getElementById('studentPanel').style.display = T ? 'none' : '';
   if (!T && editMode) exitEdit();
-  if (T) { loadAiTools('teacher'); loadFileLib(); refreshHwCourses(); loadHwStatus(); }
+  if (T) { loadAiTools('teacher'); loadFileLib(); refreshHwCourses(); loadHwStatus(); initPlan(); initStats(); paintAiTaskSamples(); }
   loadAiSources();
 }
 function loadAiSources() {
@@ -821,6 +829,33 @@ function loadAiSources() {
     }).catch(() => {});
   } catch (e) {}
 }
+// --- 右侧面板拖拽调宽（宽度记忆在本地） ---
+(function () {
+  const wrap = document.querySelector('.wrap');
+  const rz = document.getElementById('sideResize');
+  if (!wrap || !rz) return;
+  try { const saved = localStorage.getItem('sideWidth'); if (saved) wrap.style.setProperty('--side-w', saved + 'px'); } catch (e) {}
+  let dragging = false;
+  rz.addEventListener('mousedown', e => {
+    e.preventDefault(); dragging = true; rz.classList.add('drag');
+    document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const w = wrap.getBoundingClientRect();
+    const px = Math.round(Math.min(Math.max(w.right - 24 - e.clientX - 5, 320), 720));
+    wrap.style.setProperty('--side-w', px + 'px');
+    if (CHART && CHART.resize) { try { CHART.resize(); } catch (_) {} }
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false; rz.classList.remove('drag');
+    document.body.style.cursor = ''; document.body.style.userSelect = '';
+    const v = wrap.style.getPropertyValue('--side-w');
+    if (v) { try { localStorage.setItem('sideWidth', parseInt(v, 10)); } catch (e) {} }
+  });
+})();
+
 function showAuth() { document.getElementById('auth').style.display = 'flex'; }
 function hideAuth() { document.getElementById('auth').style.display = 'none'; }
 function switchAuthTab(t) {
@@ -1030,6 +1065,10 @@ async function refreshCourseList() {
     }
   }
   sel.innerHTML = h;
+  const ps = document.getElementById('planCourse');
+  if (ps) ps.innerHTML = courseOptionsHtml();
+  const st = document.getElementById('statsCourse');
+  if (st) st.innerHTML = courseOptionsHtml();
 }
 
 async function addCourse() {
@@ -1399,8 +1438,8 @@ async function runRec() {
       { mastered, weak, top_k: 5 });
     document.getElementById('recChips').innerHTML =
       d.recommendations.length
-        ? '<div class="h">建议下一步学习（薄弱点优先，已按需排序）</div>' + d.recommendations.map((r, i) =>
-            '<div class="rec-card' + (r.weak ? ' weak' : '') + '">' +
+        ? '<div class="h">建议下一步学习（薄弱点优先，已按需排序）<span style="font-weight:400;font-size:11px;color:var(--muted)">（点击卡片可在地图中定位该知识点）</span></div>' + d.recommendations.map((r, i) =>
+            '<div class="rec-card' + (r.weak ? ' weak' : '') + '" data-rnode="' + escapeAttr(r.name) + '" style="cursor:pointer" title="点击在图谱中定位「' + escapeAttr(r.name) + '」">' +
             '<div class="rc-top"><b class="rc-no">' + (i + 1) + '</b><span class="rc-name">' + escapeHtml(r.name) +
             (r.weak ? ' <span class="tag weak">薄弱 · 需巩固</span>' : '') + '</span></div>' +
             '<div class="rc-meta"><span class="rc-kind">' + escapeHtml(r.kind || '知识点') + '</span>' +
@@ -1444,6 +1483,15 @@ async function varQuiz(pt, n) {
 document.addEventListener('click', e => {
   const tgt = e.target && e.target.closest ? e.target.closest('[data-vpt]') : null;
   if (tgt) varQuiz(tgt.getAttribute('data-vpt'), 2);
+  const rc = e.target && e.target.closest ? e.target.closest('[data-rnode]') : null;
+  if (rc) {
+    const nm = rc.getAttribute('data-rnode');
+    if (focusNodeInGraph(nm)) {
+      const sc = document.getElementById('secChart');
+      if (sc) sc.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toast('已在图谱中定位：' + nm);
+    }
+  }
 });
 
 // ---------- 学生个人学习报告 ----------
@@ -1512,8 +1560,8 @@ function printReport() {
 // ---------- 教师端：学情分析 ----------
 function initStats() {
   const sel = document.getElementById('statsCourse');
-  sel.innerHTML = '<option value="">当前课程</option>' + (courseList || []).map(c =>
-    '<option>' + escapeHtml(c) + '</option>').join('');
+  if (!sel) return;
+  sel.innerHTML = courseOptionsHtml();
   document.getElementById('btnStats').onclick = loadStats;
 }
 async function loadStats() {
@@ -1551,10 +1599,15 @@ async function loadStats() {
 }
 
 // ---------- 教师端：教案生成 ----------
+function courseOptionsHtml() {
+  const src = document.getElementById('courseList');
+  const arr = src ? Array.from(src.options).map(o => o.text).filter(t => t && t !== '— 选择或切换课程 —') : [];
+  return '<option value="">当前课程</option>' + arr.map(c => '<option>' + escapeHtml(c) + '</option>').join('');
+}
 function initPlan() {
   const sel = document.getElementById('planCourse');
-  sel.innerHTML = '<option value="">当前课程</option>' + (courseList || []).map(c =>
-    '<option>' + escapeHtml(c) + '</option>').join('');
+  if (!sel) return;
+  sel.innerHTML = courseOptionsHtml();
   document.getElementById('btnPlan').onclick = loadPlan;
   document.getElementById('btnCopyPlan').onclick = () => {
     const t = document.getElementById('planOut').innerText || '';
@@ -1603,6 +1656,21 @@ function escapeAttr(s) { return (s || '').replace(/"/g, '&quot;').replace(/'/g, 
 const _AIUI = {
   teacher: { grid: 'aiToolGrid', task: 'aiTask', btn: 'btnAiGen', out: 'aiOut' },
 };
+const AI_TASK_SAMPLES = [
+  '为「梯度下降」设计 5 道课堂练习题',
+  '围绕「过拟合与正则化」生成一份讲解教案',
+  '把「线性回归」整理成 10 分钟复习要点',
+  '为「损失函数」出一道联系实际的应用题',
+];
+function paintAiTaskSamples() {
+  const box = document.getElementById('aiTaskSamples');
+  if (!box) return;
+  box.innerHTML = '<span class="qchip" style="cursor:default;color:var(--muted)">示例任务：</span>' +
+    AI_TASK_SAMPLES.map(s => '<span class="qchip" data-sample="1">' + escapeHtml(s) + '</span>').join('');
+  box.querySelectorAll('[data-sample]').forEach(el => {
+    el.onclick = () => { const t = document.getElementById('aiTask'); if (t) t.value = el.textContent; };
+  });
+}
 let _AITOOLS = [];
 let _aiSel = { teacher: 'deepseek' };
 
@@ -1702,6 +1770,18 @@ document.getElementById('btnAnalyze').onclick = () => {
   document.getElementById('analyzeOut').innerHTML += '<button class="copy-x" onclick="copyBlock(\'analyzeOut\')">复制结果</button>';
 };
 
+// --- 图谱节点定位（供搜索 / 学习路径推荐复用） ---
+function focusNodeInGraph(name) {
+  if (!name || !NODES.length || !CHART) { toast('图谱尚未载入', true); return false; }
+  const hit = NODES.find(n => n.name === name) || NODES.find(n => n.name.includes(name));
+  if (!hit) { toast('图谱中未找到该知识点：' + name, true); return false; }
+  CHART.dispatchAction({ type: 'downplay', seriesIndex: 0 });
+  CHART.dispatchAction({ type: 'highlight', seriesIndex: 0, name: hit.name });
+  CHART.dispatchAction({ type: 'showTip', seriesIndex: 0, name: hit.name });
+  showNodeDetail(hit);
+  return true;
+}
+
 // --- 教师端：知识点搜索 / 定位 ---
 document.getElementById('btnSearch').onclick = () => {
   const kw = document.getElementById('searchNode').value.trim();
@@ -1710,10 +1790,7 @@ document.getElementById('btnSearch').onclick = () => {
     NODES.find(n => n.name.includes(kw)) ||
     NODES.find(n => (n.definition || '').includes(kw));
   if (!hit) { toast('未找到匹配的知识点：' + kw, true); return; }
-  CHART.dispatchAction({ type: 'downplay', seriesIndex: 0 });
-  CHART.dispatchAction({ type: 'highlight', seriesIndex: 0, name: hit.name });
-  CHART.dispatchAction({ type: 'showTip', seriesIndex: 0, name: hit.name });
-  showNodeDetail(hit);
+  focusNodeInGraph(hit.name);
   document.getElementById('searchNode').value = '';
   toast('已定位：' + hit.name);
 };

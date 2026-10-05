@@ -33,7 +33,6 @@ class RequestChat(BaseModel):
 
 class RecommendRequest(BaseModel):
     mastered: List[str] = Field(default_factory=list, description="已掌握的知识点集合")
-    weak: List[str] = Field(default_factory=list, description="答题答错的薄弱知识点（优先推荐复习）")
     top_k: int = Field(default=5, ge=1, le=20)
 
 
@@ -82,3 +81,32 @@ class AssistantRequest(BaseModel):
     course_id: str = Field(..., description="课程 ID")
     tool_id: str = Field("deepseek", description="AI 工具 id，如 doubao/feishu/workbuddy/trae/ima/deepseek")
     task: str = Field("", max_length=500, description="教学任务描述，如：为「过拟合」生成 3 道测验题")
+
+
+# ---------- 课后习题 / 作业布置 / 学情 / 教案 ----------
+
+class HomeworkAssignRequest(BaseModel):
+    course_id: str = Field(..., description="课程 ID")
+    n: int = Field(default=5, ge=1, le=50, description="题数")
+    requirement: str = Field("", max_length=500, description="布置要求（可选）")
+
+
+class HomeworkClearRequest(BaseModel):
+    course_id: str = Field(..., description="课程 ID")
+
+
+class QuizSubmitRequest(BaseModel):
+    course_id: str = Field(..., description="课程 ID")
+    total: int = Field(default=0, ge=0, description="本组题数")
+    correct: int = Field(default=0, ge=0, description="答对题数")
+    wrong_points: List[str] = Field(default_factory=list, description="答错的知识点")
+
+
+class QuizVariantRequest(BaseModel):
+    course_id: str = Field(..., description="课程 ID")
+    point: str = Field(..., description="需要巩固的薄弱知识点")
+    n: int = Field(default=3, ge=1, le=10, description="变式题数")
+
+
+class TeachingPlanRequest(BaseModel):
+    course_id: str = Field(..., description="课程 ID")
