@@ -786,7 +786,11 @@ async function apiCall(path, method, body) {
   }
   const r = await fetch(path, opts);
   if (!r.ok) {
-    if (r.status === 401) doLogout();
+    if (r.status === 401) { doLogout(); throw new Error('登录已失效，请重新登录'); }
+    if (r.status === 403) {
+      doLogout();
+      throw new Error('当前登录身份与操作不匹配，已退出登录。请使用教师账号 teacher / 123456 重新登录后体验');
+    }
     const err = await r.json().catch(() => ({ detail: r.statusText }));
     throw new Error(err.detail || r.statusText);
   }
@@ -884,6 +888,7 @@ function switchAuthTab(t) {
 }
 async function enterApp(me) {
   hideAuth();
+  CURRENT_ROLE.username = me.username;
   document.getElementById('userArea').classList.remove('hidden');
   setUserChip(me.username, me.role);
   applyRole(me.role);
@@ -921,19 +926,18 @@ async function doLogin() {
 }
 async function quickLogin(role) {
   setAuthErr('');
-  const accounts = role === 'student'
-    ? [['student', '123456']]
-    : [['teacher', '123456'], ['student', '123456']];
-  document.getElementById('loginUser').value = accounts[0][0];
-  document.getElementById('loginPass').value = accounts[0][1];
-  for (const [u, p] of accounts) {
-    try {
-      const d = await apiCall('/api/auth/login', 'POST', { username: u, password: p });
-      document.getElementById('loginUser').value = u;
-      localStorage.setItem('kg_token', d.token); enterApp(d); return;
-    } catch (e) { /* 尝试下一个演示账号 */ }
+  const creds = role === 'student' ? ['student', '123456'] : ['teacher', '123456'];
+  document.getElementById('loginUser').value = creds[0];
+  document.getElementById('loginPass').value = creds[1];
+  try {
+    const d = await apiCall('/api/auth/login', 'POST', { username: creds[0], password: creds[1] });
+    localStorage.setItem('kg_token', d.token);
+    enterApp(d);
+  } catch (e) {
+    setAuthErr((role === 'teacher'
+      ? '教师演示账号登录失败（' + e.message + '），可稍后重试，或手动输入 teacher / 123456 登录'
+      : '学生演示账号登录失败（' + e.message + '），可稍后重试，或手动输入 student / 123456 登录'));
   }
-  setAuthErr('演示账号不可用，请在下面注册一个账号后登录');
 }
 async function doRegister() {
   const username = document.getElementById('regUser').value.trim();
@@ -954,6 +958,14 @@ async function init() {
   }
   showAuth();
 }
+// 多标签页/多次登录场景：回到本页时校验令牌与页面身份是否一致，不一致则按当前令牌重建界面
+window.addEventListener('focus', async () => {
+  if (!localStorage.getItem('kg_token')) return;
+  try {
+    const me = await apiCall('/api/auth/me');
+    if (me.role !== CURRENT_ROLE.role || me.username !== CURRENT_ROLE.username) enterApp(me);
+  } catch (e) { /* 401/403 已在 apiCall 内自动登出 */ }
+});
 window.doLogin = doLogin; window.doRegister = doRegister;
 window.doLogout = doLogout; window.switchAuthTab = switchAuthTab;
 
