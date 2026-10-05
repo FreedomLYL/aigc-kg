@@ -1438,7 +1438,7 @@ async function runRec() {
       { mastered, weak, top_k: 5 });
     document.getElementById('recChips').innerHTML =
       d.recommendations.length
-        ? '<div class="h">建议下一步学习（薄弱点优先，已按需排序）<span style="font-weight:400;font-size:11px;color:var(--muted)">（点击卡片可在地图中定位该知识点）</span></div>' + d.recommendations.map((r, i) =>
+        ? '<div class="h">建议下一步学习（薄弱点优先，已按需排序）<span style="font-weight:400;font-size:11px;color:var(--muted)">（路径已自动在图谱中动画演示，点击卡片可定位该知识点）</span></div>' + d.recommendations.map((r, i) =>
             '<div class="rec-card' + (r.weak ? ' weak' : '') + '" data-rnode="' + escapeAttr(r.name) + '" style="cursor:pointer" title="点击在图谱中定位「' + escapeAttr(r.name) + '」">' +
             '<div class="rc-top"><b class="rc-no">' + (i + 1) + '</b><span class="rc-name">' + escapeHtml(r.name) +
             (r.weak ? ' <span class="tag weak">薄弱 · 需巩固</span>' : '') + '</span></div>' +
@@ -1446,6 +1446,7 @@ async function runRec() {
             (r.in_degree ? '<span class="rc-core">核心度 ×' + r.in_degree + '</span>' : '') + '</div>' +
             '<div class="rc-def">' + escapeHtml(r.definition || '暂无定义') + '</div></div>').join('')
         : '<span class="empty">暂无推荐</span>';
+    animateRecPath(d.recommendations.map(r => r.name));
   } catch(e) { toast('推荐失败：' + e.message, true); }
 }
 document.getElementById('btnRec').onclick = () => {
@@ -1779,6 +1780,61 @@ function focusNodeInGraph(name) {
   CHART.dispatchAction({ type: 'highlight', seriesIndex: 0, name: hit.name });
   CHART.dispatchAction({ type: 'showTip', seriesIndex: 0, name: hit.name });
   showNodeDetail(hit);
+  return true;
+}
+
+// --- 学习路径图谱动画（推荐结果沿路径依次高亮 + 连线流动） ---
+let __recAnimTimers = [];
+function hideRecPathSeries() {
+  try {
+    CHART.setOption({ series: [{ id: 'rec_path', data: [], links: [], effect: { show: false } }] });
+  } catch (e) {}
+}
+function stopRecAnim() {
+  __recAnimTimers.forEach(clearTimeout);
+  __recAnimTimers = [];
+  hideRecPathSeries();
+  try { CHART.dispatchAction({ type: 'downplay', seriesIndex: 0 }); } catch (e) {}
+}
+function animateRecPath(names) {
+  if (!names || !names.length) return false;
+  stopRecAnim();
+  if (!CHART || !NODES.length) { toast('图谱尚未载入，无法动画演示', true); return false; }
+  const mainSeries = CHART.getModel().getSeriesByIndex(0);
+  const data = mainSeries && mainSeries.getData();
+  if (!data) return false;
+  const pos = {};
+  for (let i = 0; i < data.count(); i++) {
+    const lay = data.getItemLayout(i);
+    if (lay && lay.x != null) pos[data.getName(i)] = [lay.x, lay.y];
+  }
+  const path = names.map(nm => NODES.find(n => n.name === nm) || NODES.find(n => n.name.includes(nm))).filter(Boolean);
+  const pts = path.filter(n => pos[n.name]);
+  if (!pts.length) { toast('推荐知识点未在当前图谱中，无法动画演示', true); return false; }
+  CHART.setOption({ series: [{
+    id: 'rec_path', name: '__rec_path__', type: 'graph', layout: 'none', roam: false, z: 6, silent: true,
+    data: pts.map(n => ({
+      name: n.name, x: pos[n.name][0], y: pos[n.name][1],
+      symbolSize: 1, itemStyle: { opacity: 0 }, label: { show: false }, tooltip: { show: false }
+    })),
+    links: pts.slice(1).map((n, i) => ({ source: pts[i].name, target: n.name })),
+    lineStyle: { color: '#ffb24a', width: 3, curveness: 0.22, opacity: 0.95, shadowColor: '#ff8b00', shadowBlur: 12 },
+    edgeSymbol: ['none', 'arrow'], edgeSymbolSize: 10,
+    effect: { show: true, symbol: 'arrow', symbolSize: 9, color: '#ffd76b', trailLength: 0.4, period: pts.length > 3 ? 3 : 2.2 },
+    label: { show: false }
+  }] });
+  pts.forEach((n, idx) => {
+    __recAnimTimers.push(setTimeout(() => {
+      CHART.dispatchAction({ type: 'downplay', seriesIndex: 0 });
+      CHART.dispatchAction({ type: 'highlight', seriesIndex: 0, name: n.name });
+      CHART.dispatchAction({ type: 'showTip', seriesIndex: 0, name: n.name });
+    }, idx * 800));
+  });
+  __recAnimTimers.push(setTimeout(() => {
+    stopRecAnim();
+    showNodeDetail(pts[pts.length - 1]);
+  }, pts.length * 800 + 1500));
+  toast('已在图谱中动画演示学习路径：' + pts.map(n => n.name).join(' → '));
   return true;
 }
 
