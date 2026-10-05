@@ -17,12 +17,13 @@
   .mode-badge{font-size:11px;border-radius:999px;padding:2px 10px;font-weight:600}
   .mode-badge.browse{background:#182c24;color:var(--acc)}
   .mode-badge.edit{background:#2a2410;color:var(--edit)}
-  .wrap{display:grid;grid-template-columns:66px 1fr 10px var(--side-w,440px);gap:16px;padding:16px 24px;height:calc(100vh - 60px)}
-  .resizer{position:relative;cursor:col-resize;user-select:none;z-index:20;border-radius:5px;transition:background .15s}
-  .resizer::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:3px;height:46px;
-    border-radius:3px;background:rgba(47,212,160,.22)}
-  .resizer:hover,.resizer.drag{background:rgba(47,212,160,.22)}
-  .resizer:hover::before,.resizer.drag::before{background:var(--acc);height:64px;transition:height .15s}
+  .wrap{display:grid;grid-template-columns:66px 1fr 10px clamp(280px,var(--side-w,520px),calc(100vw - 400px));gap:16px;padding:16px 24px;height:calc(100vh - 60px)}
+  .resizer{position:relative;cursor:col-resize;user-select:none;z-index:20;border-radius:5px;transition:background .15s;touch-action:none}
+  .resizer::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:4px;height:52px;
+    border-radius:3px;background:rgba(255,255,255,.30);box-shadow:0 0 6px rgba(0,0,0,.35)}
+  .resizer:hover,.resizer.drag{background:rgba(47,212,160,.25)}
+  .resizer:hover::before,.resizer.drag::before{background:var(--acc);height:72px;transition:height .15s}
+  .resizer.drag{box-shadow:inset 0 0 0 1px rgba(47,212,160,.45)}
   .sidenav{display:flex;flex-direction:column;align-items:stretch;gap:5px;height:100%;
     background:rgba(20,32,25,.55);border:1px solid rgba(47,212,160,.10);border-radius:14px;
     padding:10px 6px;backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);
@@ -277,7 +278,7 @@
     </div>
   </div>
 
-  <div class="resizer" id="sideResize" title="拖动调整右侧面板宽度"></div>
+  <div class="resizer" id="sideResize" title="拖动调整右侧面板宽度（双击恢复默认）"></div>
 
   <div class="side">
     <!-- 课程导览（首屏首页） -->
@@ -829,31 +830,46 @@ function loadAiSources() {
     }).catch(() => {});
   } catch (e) {}
 }
-// --- 右侧面板拖拽调宽（宽度记忆在本地） ---
+// --- 右侧面板拖拽调宽（支持鼠标/触摸，宽度记忆在本地，双击恢复默认） ---
 (function () {
   const wrap = document.querySelector('.wrap');
   const rz = document.getElementById('sideResize');
   if (!wrap || !rz) return;
   try { const saved = localStorage.getItem('sideWidth'); if (saved) wrap.style.setProperty('--side-w', saved + 'px'); } catch (e) {}
-  let dragging = false;
-  rz.addEventListener('mousedown', e => {
-    e.preventDefault(); dragging = true; rz.classList.add('drag');
-    document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none';
-  });
-  document.addEventListener('mousemove', e => {
-    if (!dragging) return;
-    const w = wrap.getBoundingClientRect();
-    const px = Math.round(Math.min(Math.max(w.right - 24 - e.clientX - 5, 320), 720));
+  const DEFAULT_W = 520;
+  const setW = px => {
     wrap.style.setProperty('--side-w', px + 'px');
     if (CHART && CHART.resize) { try { CHART.resize(); } catch (_) {} }
-  });
-  document.addEventListener('mouseup', () => {
-    if (!dragging) return;
-    dragging = false; rz.classList.remove('drag');
-    document.body.style.cursor = ''; document.body.style.userSelect = '';
+  };
+  const saveW = () => {
     const v = wrap.style.getPropertyValue('--side-w');
     if (v) { try { localStorage.setItem('sideWidth', parseInt(v, 10)); } catch (e) {} }
+  };
+  rz.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    rz.setPointerCapture(e.pointerId);
+    rz.classList.add('drag');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
   });
+  rz.addEventListener('pointermove', e => {
+    if (!rz.classList.contains('drag')) return;
+    const w = wrap.getBoundingClientRect();
+    const max = Math.max(320, Math.min(720, w.width - 480));
+    const px = Math.round(Math.min(Math.max(w.right - 24 - e.clientX - 5, 320), max));
+    setW(px);
+  });
+  const stop = e => {
+    if (!rz.classList.contains('drag')) return;
+    rz.classList.remove('drag');
+    try { rz.releasePointerCapture(e.pointerId); } catch (_) {}
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    saveW();
+  };
+  rz.addEventListener('pointerup', stop);
+  rz.addEventListener('pointercancel', stop);
+  rz.addEventListener('dblclick', () => { setW(DEFAULT_W); saveW(); toast('已恢复默认宽度'); });
 })();
 
 function showAuth() { document.getElementById('auth').style.display = 'flex'; }
